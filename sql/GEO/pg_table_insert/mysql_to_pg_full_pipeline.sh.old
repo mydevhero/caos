@@ -1,0 +1,138 @@
+#!/usr/bin/bash
+
+# Configurazione database MySQL
+MYSQL_USER=""
+MYSQL_PASS=""
+MYSQL_DB=""
+MYSQL_HOST="localhost"
+
+# Directory di lavoro
+EXPORT_DIR="../mysql_table_export"
+OUTPUT_DIR="."
+
+# Funzione per mostrare l'uso
+usage() {
+    echo "Uso: $0 -u mysql_user -p mysql_password -d mysql_database [-h mysql_host]"
+    echo ""
+    echo "Opzioni:"
+    echo "  -u    Username MySQL"
+    echo "  -p    Password MySQL"
+    echo "  -d    Nome database MySQL"
+    echo "  -h    Host MySQL (default: localhost)"
+    exit 1
+}
+
+# Parse parametri
+while getopts "u:p:d:h:" opt; do
+    case $opt in
+        u) MYSQL_USER="$OPTARG" ;;
+        p) MYSQL_PASS="$OPTARG" ;;
+        d) MYSQL_DB="$OPTARG" ;;
+        h) MYSQL_HOST="$OPTARG" ;;
+        *) usage ;;
+    esac
+done
+
+# Verifica parametri obbligatori
+if [ -z "$MYSQL_USER" ] || [ -z "$MYSQL_PASS" ] || [ -z "$MYSQL_DB" ]; then
+    echo "Errore: Tutti i parametri -u, -p, -d sono obbligatori"
+    usage
+fi
+
+echo "=========================================="
+echo "MYSQL TO POSTGRESQL CONVERSION PIPELINE"
+echo "=========================================="
+echo "MySQL Host: $MYSQL_HOST"
+echo "MySQL Database: $MYSQL_DB"
+echo "MySQL User: $MYSQL_USER"
+echo "Export Directory: $EXPORT_DIR"
+echo ""
+
+# Crea la directory di export se non esiste
+mkdir -p "$EXPORT_DIR"
+
+echo "Step 1: Esportazione tabelle da MySQL..."
+echo "------------------------------------------"
+
+# Ottieni la lista delle tabelle
+TABLES=$(mysql -h "$MYSQL_HOST" -u "$MYSQL_USER" -p"$MYSQL_PASS" -e "SHOW TABLES;" "$MYSQL_DB" 2>/dev/null | tail -n +2)
+
+if [ $? -ne 0 ]; then
+    echo "Errore: Impossibile connettersi al database MySQL"
+    exit 1
+fi
+
+if [ -z "$TABLES" ]; then
+    echo "Errore: Nessuna tabella trovata nel database $MYSQL_DB"
+    exit 1
+fi
+
+echo "Tabelle trovate:"
+echo "$TABLES"
+echo ""
+
+# Esporta ogni tabella
+for TABLE in $TABLES; do
+    echo "Esportando tabella: $TABLE"
+    mysqldump -h "$MYSQL_HOST" -u "$MYSQL_USER" -p"$MYSQL_PASS" \
+        --no-create-info \
+        --complete-insert \
+        --no-create-db \
+        --skip-add-locks \
+        --skip-disable-keys \
+        --skip-comments \
+        "$MYSQL_DB" "$TABLE" > "$EXPORT_DIR/$TABLE.sql" 2>/dev/null
+    
+    if [ $? -eq 0 ]; then
+        echo "✓ $TABLE.sql creato"
+    else
+        echo "✗ Errore nell'export di $TABLE"
+    fi
+done
+
+echo ""
+echo "Step 2: Conversione per PostgreSQL..."
+echo "--------------------------------------"
+
+# Converti ogni file esportato
+for FILE_PATH in "$EXPORT_DIR"/*.sql; do
+    # Controlla se esistono file .sql
+    if [ ! -f "$FILE_PATH" ]; then
+        echo "Nessun file .sql trovato in $EXPORT_DIR"
+        exit 1
+    fi
+    
+    # Estrae il nome del file senza path e senza estensione
+    BASENAME=$(basename "$FILE_PATH" .sql)
+    
+    # Imposta le variabili
+    TABLE_NAME=$BASENAME
+    INPUT_FILE="$FILE_PATH"
+    OUTPUT_FILE="$OUTPUT_DIR/$TABLE_NAME.pg.sql"
+    
+    echo "Convertendo: $BASENAME"
+    
+    # Copia il file di input nel file di output
+    cp "$INPUT_FILE" "$OUTPUT_FILE"
+    
+    # Aggiunge il nome della tabella
+    sed -i "s/INSERT INTO \`\`/INSERT INTO geo.$TABLE_NAME/" "$OUTPUT_FILE"
+    
+    # Aggiusta i nomi dei campi
+    sed -i 's/`//g' "$OUTPUT_FILE"
+    
+    # Modifica i single quote escaped
+    sed -i "s/\\\\'/''/" "$OUTPUT_FILE"
+    
+    echo "✓ $OUTPUT_FILE creato"
+done
+
+echo ""
+echo "=========================================="
+echo "CONVERSIONE COMPLETATA!"
+echo "=========================================="
+echo "File PostgreSQL generati in: $OUTPUT_DIR"
+echo "File originali MySQL in: $EXPORT_DIR"
+echo ""
+echo "Per importare in PostgreSQL:"
+echo "psql -U postgres_user -d postgres_db -f table_name.pg.sql"

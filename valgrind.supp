@@ -1,0 +1,9 @@
+{
+   libgssapi_krb5_still_reachable
+   Memcheck:Leak
+   ...
+   fun:*libgssapi_krb5*
+   fun:*libpq*
+   fun:*libcrypto*
+   ...
+}

@@ -1,0 +1,12 @@
+/*
+ * version.hpp
+ *
+ *  Created on: 26 giu 2025
+ *      Author: mrbi314
+ */
+
+#pragma once
+
+#define CAOS_BUILD_VERSION "@BUILD_VERSION@"
+#define CAOS_BUILD_TIMESTAMP "@BUILD_TIMESTAMP@"
+#define CAOS_BUILD_VERSION_WITH_TIMESTAMP CAOS_BUILD_VERSION "::" CAOS_BUILD_TIMESTAMP

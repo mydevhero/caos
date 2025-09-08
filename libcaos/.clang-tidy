@@ -1,0 +1,10 @@
+Checks: >
+    modernize-use-override,
+    modernize-use-nodiscard,
+    modernize-use-noexcept,
+    cppcoreguidelines-*,
+    bugprone-*,
+    performance-*,
+    readability-*
+WarningsAsErrors: true
+HeaderFilterRegex: '^(?!.*/(_build|build|cmake-build)/).*$'

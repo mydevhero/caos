@@ -1,0 +1,30 @@
+LOAD DATABASE
+     FROM mysql://pgloader:password_sicura@localhost/database_comuni
+     INTO postgresql://postgres:mX3LAmIEQy58Xiy0izlA@erpmom/geo
+
+WITH 
+    include no drop,
+    create tables,
+    create indexes,
+    reset sequences,
+    workers = 4,
+    concurrency = 2
+
+CAST 
+    type decimal to numeric,
+    type double to "double precision",
+    type varchar to varchar keep typemod,
+    type char to char keep typemod,
+    type datetime to "timestamp without time zone",
+    type date to date,
+    type bigint to bigint,
+    type int to integer,
+    type smallint to smallint
+
+SET PostgreSQL PARAMETERS
+    work_mem to '256MB',
+    maintenance_work_mem to '512MB'
+
+SET MySQL PARAMETERS
+    net_read_timeout = '3600',
+    net_write_timeout = '3600';

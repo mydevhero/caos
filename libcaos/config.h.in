@@ -1,0 +1,204 @@
+#pragma once
+
+#include <libcaos/version.hpp>
+#include <thread>
+#include <stdexcept>
+#include <memory>
+#include <string>
+#include <unordered_map>
+#include <iostream>
+#include <cstdint>
+
+#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_DEBUG
+#include "spdlog/spdlog.h"                                                                          // Logger - https://github.com/gabime/spdlog/wiki/
+
+
+#include <array>
+
+
+
+
+
+
+
+
+
+
+static constexpr const char* _logo=R"(
+ __  __ __ _  _ __   _ __
+ \ \/ // _` || '_ \ | '_ \
+  >  <| (_| || |_) || |_) |
+ /_/\_\\__,_|| .__/ | .__/
+             | |    | |
+             |_|    |_|
+___________________________)";
+
+#define CAOS_OFFICIALNAME                                     "Crow App On Steroids"
+#define CAOS_LIBNAME                                          "caos"
+static const std::string libname = CAOS_LIBNAME;
+
+
+
+
+// Environment -------------------------------------------------------------------------------------
+#define CAOS_ENV_APP_ENV_NAME              "CAOS_ENV"
+#define CAOS_OPT_APP_ENV_NAME              "env"
+#define CAOS_DEFAULT_APP_ENV_VALUE         "dev"
+//--------------------------------------------------------------------------------------------------
+
+
+
+
+// LOG Severity ------------------------------------------------------------------------------------
+#define CAOS_ENV_LOG_SEVERITY_NAME                            "CAOS_SEVERITY"
+#define CAOS_OPT_LOG_SEVERITY_NAME                            "severity"
+
+#define CAOS_SEVERITY_LEVEL_BEFORE_LOG_START                  spdlog::level::trace
+
+#define CAOS_LOG_SEVERITY_ON_DEV_VALUE                        "trace"
+#define CAOS_LOG_SEVERITY_ON_TEST_VALUE                       "debug"
+#define CAOS_LOG_SEVERITY_ON_PRODUCTION_VALUE                 "warn"
+
+#define CAOS_LOG_QUEUE                                        8192
+#define CAOS_LOG_THREAD_COUNT                                 1
+#define CAOS_LOG_FILE                                         "/var/log/caos.log"
+#define CAOS_LOG_FILE_DIMENSION                               1024*1024*5
+#define CAOS_LOG_NUMBER                                       5
+
+#define CAOS_LOG_TERMINAL_PATTERN                             "[%Y-%m-%d %H:%M:%S.%e] [%l] [%n:%P] %v"
+#define CAOS_LOG_ROTATING_PATTERN                             "[%Y-%m-%d %H:%M:%S.%e] [%l] %v"
+#define CAOS_LOG_SYSLOG_PATTERN                               "[%l] %v"
+
+// Do not edit unless you know what are you doing!!!
+using LogSeverity = spdlog::level::level_enum;
+enum class LogDestinationSink: std::uint8_t { terminal=0, syslog, EOE };
+//--------------------------------------------------------------------------------------------------
+
+
+
+
+
+// Server Network Address Definitions --------------------------------------------------------------
+#define CAOS_ENV_BINDTOADDRESS_NAME        "CAOS_ADDRESS"
+#define CAOS_OPT_BINDTOADDRESS_NAME        "address"
+#define CAOS_DEFAULT_BINDTOADDRESS_VALUE   "127.0.0.1"
+//--------------------------------------------------------------------------------------------------
+
+
+
+
+
+// Server Network Port -----------------------------------------------------------------------------
+#define CAOS_ENV_BINDTOPORT_NAME           "CAOS_PORT"
+#define CAOS_OPT_BINDTOPORT_NAME           "port"
+#define CAOS_DEFAULT_BINDTOPORT_VALUE      18080
+
+// Do not edit unless you know what are you doing!!!
+constexpr int CAOS_UNPRIVILEGED_PORT_MIN = 1024;
+constexpr int CAOS_UNPRIVILEGED_PORT_MAX = 49151;
+//--------------------------------------------------------------------------------------------------
+
+
+
+
+
+// Server Threads ----------------------------------------------------------------------------------
+#define CAOS_ENV_THREADS_NAME                      "CAOS_THREADS"
+#define CAOS_OPT_THREADS_NAME                      "threads"
+#define CAOS_DEFAULT_THREADS_VALUE                                                                  // Leave empty to set max_threads
+#define CAOS_DEFAULT_THREADS_ON_UNSET_VALUE        3
+#define CAOS_DEFAULT_THREADS_ENV_DEV_OR_TEST_VALUE 2
+//--------------------------------------------------------------------------------------------------
+
+
+
+
+
+// Database ----------------------------------------------------------------------------------------
+#define CAOS_ENV_DBUSER_NAME                                "CAOS_DBUSER"
+#define CAOS_ENV_DBPASS_NAME                                "CAOS_DBPASS"
+#define CAOS_ENV_DBHOST_NAME                                "CAOS_DBHOST"
+#define CAOS_ENV_DBPORT_NAME                                "CAOS_DBPORT"
+#define CAOS_ENV_DBNAME_NAME                                "CAOS_DBNAME"
+#define CAOS_ENV_DBPOOLSIZEMIN_NAME                         "CAOS_DBPOOLSIZEMIN"
+#define CAOS_ENV_DBPOOLSIZEMAX_NAME                         "CAOS_DBPOOLSIZEMAX"
+#define CAOS_ENV_DBPOOLWAIT_NAME                            "CAOS_DBPOOLWAIT"
+#define CAOS_ENV_DBPOOLTIMEOUT_NAME                         "CAOS_DBPOOLTIMEOUT"
+#define CAOS_ENV_DBKEEPALIVES_NAME                          "CAOS_DBKEEPALIVES"
+#define CAOS_ENV_DBKEEPALIVES_IDLE_NAME                     "CAOS_DBKEEPALIVES_IDLE"
+#define CAOS_ENV_DBKEEPALIVES_INTERVAL_NAME                 "CAOS_DBKEEPALIVES_INTERVAL"
+#define CAOS_ENV_DBKEEPALIVES_COUNT_NAME                    "CAOS_DBKEEPALIVES_COUNT"
+#define CAOS_ENV_DBCONNECT_TIMEOUT_NAME                     "CAOS_DBCONNECT_TIMEOUT"
+#define CAOS_ENV_DBMAXWAIT_NAME                             "CAOS_DBMAXWAIT"
+#define CAOS_ENV_DBHEALTHCHECKINTERVAL_NAME                 "CAOS_DBHEALTHCHECKINTERVAL"
+
+#define CAOS_OPT_DBUSER_NAME                                "dbuser"
+#define CAOS_OPT_DBPASS_NAME                                "dbpass"
+#define CAOS_OPT_DBHOST_NAME                                "dbhost"
+#define CAOS_OPT_DBPORT_NAME                                "dbport"
+#define CAOS_OPT_DBNAME_NAME                                "dbname"
+#define CAOS_OPT_DBPOOLSIZEMIN_NAME                         "dbpoolsizemin"
+#define CAOS_OPT_DBPOOLSIZEMAX_NAME                         "dbpoolsizemax"
+#define CAOS_OPT_DBPOOLWAIT_NAME                            "dbpoolwait"
+#define CAOS_OPT_DBPOOLTIMEOUT_NAME                         "dbpooltimeout"
+#define CAOS_OPT_DBKEEPALIVES_NAME                          "dbkeepalives"
+#define CAOS_OPT_DBKEEPALIVES_IDLE_NAME                     "dbkeepalives_idle"
+#define CAOS_OPT_DBKEEPALIVES_INTERVAL_NAME                 "dbkeepalives_interval"
+#define CAOS_OPT_DBKEEPALIVES_COUNT_NAME                    "dbkeepalives_count"
+#define CAOS_OPT_DBCONNECT_TIMEOUT_NAME                     "dbconnect_timeout"
+#define CAOS_OPT_DBMAXWAIT_NAME                             "dbmaxwait"
+#define CAOS_OPT_DBHEALTHCHECKINTERVAL_NAME                 "dbhealthcheckinterval"
+
+#define CAOS_DEFAULT_DBUSER                                 "xapp_u"
+#define CAOS_DEFAULT_DBPASS                                 "verystrongpassword"
+#define CAOS_DEFAULT_DBHOST                                 "127.0.0.1"
+#define CAOS_DEFAULT_DBPORT                                 5432
+#define CAOS_DEFAULT_DBNAME                                 "mycaoserp"
+#define CAOS_DEFAULT_DBPOOLSIZEMIN                          10
+#define CAOS_DEFAULT_DBPOOLSIZEMAX                          20
+#define CAOS_DEFAULT_DBPOOLWAIT                             2000                                    /* milliseconds */
+#define CAOS_DEFAULT_DBPOOLTIMEOUT                          15000                                   /* milliseconds */
+#define CAOS_DEFAULT_DBKEEPALIVES                           1
+#define CAOS_DEFAULT_DBKEEPALIVES_IDLE                      30
+#define CAOS_DEFAULT_DBKEEPALIVES_INTERVAL                  10
+#define CAOS_DEFAULT_DBKEEPALIVES_COUNT                     5
+#define CAOS_DEFAULT_DBCONNECT_TIMEOUT                      30
+#define CAOS_DEFAULT_DBMAXWAIT                              5000                                    /* milliseconds */
+#define CAOS_DEFAULT_DBHEALTHCHECKINTERVAL                  30000                                   /* milliseconds */
+
+#define CAOS_DEFAULT_DBUSER_ON_DEV_OR_TEST                  "libxapp_u"
+#define CAOS_DEFAULT_DBPASS_ON_DEV_OR_TEST                  "302218"
+#define CAOS_DEFAULT_DBHOST_ON_DEV_OR_TEST                  "127.0.0.1"
+// #define CAOS_DEFAULT_DBPORT_ON_DEV_OR_TEST                  5432
+#define CAOS_DEFAULT_DBNAME_ON_DEV_OR_TEST                  "libxapp"
+// #define CAOS_DEFAULT_DBPOOLSIZEMIN_ON_DEV_OR_TEST           2
+// #define CAOS_DEFAULT_DBPOOLSIZEMAX_ON_DEV_OR_TEST           4
+// #define CAOS_DEFAULT_DBPOOLWAIT_ON_DEV_OR_TEST              30000
+// #define CAOS_DEFAULT_DBPOOLTIMEOUT_ON_DEV_OR_TEST           15000
+// #define CAOS_DEFAULT_DBKEEPALIVES_ON_DEV_OR_TEST            1
+// #define CAOS_DEFAULT_DBKEEPALIVES_IDLE_ON_DEV_OR_TEST       30
+// #define CAOS_DEFAULT_DBKEEPALIVES_INTERVAL_ON_DEV_OR_TEST   10
+// #define CAOS_DEFAULT_DBKEEPALIVES_COUNT_ON_DEV_OR_TEST      5
+// #define CAOS_DEFAULT_DBCONNECT_TIMEOUT_ON_DEV_OR_TEST       30
+// #define CAOS_DEFAULT_DBMAXWAIT_ON_DEV_OR_TEST               5000  /* milliseconds */
+// #define CAOS_DEFAULT_DBHEALTHCHECKINTERVAL_ON_DEV_OR_TEST   30000 /* milliseconds */
+
+#define CAOS_LOG_THRESHOLD_CONNECTION_LIMIT_EXCEEDED        50
+
+#define CAOS_DEFAULT_DATABASE_TYPE                          DatabaseType::PostgreSQL
+//--------------------------------------------------------------------------------------------------
+
+
+
+// #define CHECK_NON_EMPTY_STRING(token)\
+// static_assert( std::string_view(token).find_first_not_of(" \t\n\r\f\v") != std::string_view::npos, #token " must not be empty or whitespace-only");
+
+// #define CHECK_NON_EMPTY_STRING(macro_name) \
+// static_assert( \
+//   ([]() constexpr { \
+//     constexpr std::string_view sv(macro_name); \
+//     return sv.find_first_not_of(" \t\n\r\f\v") != std::string_view::npos; \
+//   })(), \
+//   #macro_name " must be non-empty and not whitespace-only. Value: '" macro_name "'" \
+// )
+

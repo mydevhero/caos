@@ -1,0 +1,12 @@
+# This file is used to ignore files which are generated
+# ----------------------------------------------------------------------------
+
+build/
+
+# qtcreator generated files
+*.pro.user*
+CMakeLists.txt.user*
+
+# Vim temporary files
+.*.swp
+
