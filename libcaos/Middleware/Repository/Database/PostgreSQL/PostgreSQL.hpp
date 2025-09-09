@@ -86,7 +86,11 @@ class PostgreSQL final: public IRepository
                                   ConnectionMetrics,
                                   UniquePtrHash,
                                   UniquePtrEqual>       connections                       ;
+
+        static std::vector<decltype(connections)::iterator>  connectionsToRemove;
+
         static std::mutex                               connections_mutex                 ;
+        // static std::shared_mutex                        connections_mutex                 ;
 
         struct config_s
         {
@@ -152,12 +156,13 @@ class PostgreSQL final: public IRepository
         static inline std::size_t                       init(std::size_t = 0)             ;
 
         // [[nodiscard]] static bool                       validateConnection(const std::unique_ptr<pqxx::connection>&)     ;
-        [[nodiscard]] static bool                       validateConnection(const std::unique_ptr<pqxx::connection>& connection, std::unique_lock<std::mutex>* existing_lock = nullptr);
+        [[nodiscard]] static bool                       validateConnection(const std::unique_ptr<pqxx::connection>& connection);
         [[nodiscard]] static bool                       createConnection(std::size_t&)           ;
         static void                                     healthCheckLoop()                 ;
         static std::optional<const std::unique_ptr<pqxx::connection>*>                            acquireConnection()               ;
         void                                            handleInvalidConnection(const std::unique_ptr<pqxx::connection>&);
-        static inline void                              cleanupIdleConnections()          ;
+        static void                                     cleanupMarkedConnections();
+        // static inline void                              cleanupIdleConnections()          ;
         // void                                            startCleanupTask()                ;
 
         static std::chrono::milliseconds                getTotalDuration(const std::unique_ptr<pqxx::connection>&)      ;
@@ -247,8 +252,9 @@ class PostgreSQL final: public IRepository
       catch (const pqxx::broken_connection& e)
       {
         // PostgreSQL::Pool::closeConnection(*(connection_opt.value().getRaw()));
-        CAOS_POSTGRESQL_CLOSE_CONNECTION()
-        spdlog::error("[{}] 2Broken connection: {}", fName, e.what());
+        // CAOS_POSTGRESQL_CLOSE_CONNECTION()
+        // spdlog::error("[{}] 2Broken connection: {}", fName, e.what());
+        throw;
       }
       catch (const pqxx::sql_error& e)
       {

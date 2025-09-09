@@ -40,25 +40,46 @@ int main(int argc, char* argv[])
 
   crow::App<> app;
 
-  CROW_ROUTE(app, "/<string>")([](std::string str){
+  CROW_ROUTE(app, "/<string>")([](crow::response& res, std::string str){
 
     spdlog::trace("URL: /<string>");
 
-    auto ret = mycaos->repository->echoString(str);
-
-    spdlog::trace("AAA");
-
-    if (ret.has_value())
+    try
     {
-      spdlog::trace("BBB");
-      return ret.value(); // std::string
+      auto ret = mycaos->repository->echoString(str);
+
+      spdlog::trace("AAA");
+
+      if (ret.has_value())
+      {
+        spdlog::trace("BBB");
+        // return  ret.value(); // std::string
+        res.set_header("Content-Type", "text/html");
+        res.body = ret.value();
+        res.code = 200;
+      }
+    }
+    catch (const pqxx::broken_connection& e)
+    {
+      std::cout << "A1\n";
+      res.set_header("Content-Type", "text/plain");
+      res.body = "Repository unavailable";
+      res.code = 503;
+    }
+    catch (const pqxx::sql_error& e)
+    {
+      std::cout << "A2\n";
+    }
+    catch (const std::exception& e)
+    {
+      std::cout << "A3\n";
+    }
+    catch(...)
+    {
+      spdlog::error("Can't execute echoString() query");
     }
 
-    spdlog::trace("CCC");
-    // std::string newret = "not found";
-    // return newret; // const* char
-
-    return std::string("not found");
+    res.end();
   });
 
   app.port(18080)./*multithreaded().*/run();

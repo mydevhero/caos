@@ -125,6 +125,8 @@ constexpr const char* defaultFinal                            =
  **************************************************************************************************/
 std::mutex                        PostgreSQL::Pool::shutdown_mutex_{};
 std::mutex                        PostgreSQL::Pool::connections_mutex{};
+// std::shared_mutex                 PostgreSQL::Pool::connections_mutex{};
+
 std::condition_variable           PostgreSQL::Pool::condition{}                      ;
 std::condition_variable           PostgreSQL::Pool::shutdown_cv_                    ;
 // PostgreSQL::Pool::Stats PostgreSQL::Pool::stats{};
@@ -134,6 +136,7 @@ std::condition_variable           PostgreSQL::Pool::shutdown_cv_                
 //                    PostgreSQL::Pool::UniquePtrHash,
 //                    PostgreSQL::Pool::UniquePtrEqual> PostgreSQL::Pool::connections{};
 std::unordered_map<std::unique_ptr<pqxx::connection>, PostgreSQL::Pool::ConnectionMetrics, PostgreSQL::Pool::UniquePtrHash, PostgreSQL::Pool::UniquePtrEqual> PostgreSQL::Pool::connections{};
+std::vector<decltype(PostgreSQL::Pool::connections)::iterator> PostgreSQL::Pool::connectionsToRemove;
 
 PostgreSQL::Pool::config_s PostgreSQL::Pool::config = {
     .user = "",
@@ -1896,9 +1899,10 @@ std::chrono::milliseconds PostgreSQL::Pool::getHealthCheckInterval()  noexcept {
 std::size_t PostgreSQL::Pool::getAvailableConnections() noexcept
 {
   std::size_t count = 0;
-std::cout << "I\n";
-  std::lock_guard<std::mutex> lock(PostgreSQL::Pool::connections_mutex);
-std::cout << "L\n";
+
+  // std::lock_guard<std::mutex> lock(PostgreSQL::Pool::connections_mutex);
+  std::unique_lock<std::mutex> lock(PostgreSQL::Pool::connections_mutex, std::try_to_lock);
+
   // Cerca la unique_ptr corrispondente nella mappa
   for (auto it = PostgreSQL::Pool::connections.begin(); it != PostgreSQL::Pool::connections.end(); ++it)
   {
@@ -1931,7 +1935,7 @@ std::cout << "L\n";
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 std::size_t PostgreSQL::Pool::getTotalConnections() noexcept
 {
-  std::lock_guard<std::mutex> lock(PostgreSQL::Pool::connections_mutex);
+  std::unique_lock<std::mutex> lock(PostgreSQL::Pool::connections_mutex, std::try_to_lock);
   return PostgreSQL::Pool::connections.size();
 }
 // -------------------------------------------------------------------------------------------------
@@ -1977,11 +1981,6 @@ std::size_t PostgreSQL::Pool::init(std::size_t count)
   std::atomic<std::size_t> offlineCounter{0};
 
   spdlog::warn("[{}] New pool building", fName);
-
-  // std::cout << "running "   << PostgreSQL::Pool::connection_.count.load(std::memory_order_acquire)
-  //           << " building " << pool_size
-  //           << "\n";
-
 
   while (i < pool_size                                                                              // Create connections until the requested size is reached
          && running_.load(std::memory_order_acquire))                                               // Stop if a signal is detect
@@ -2109,16 +2108,9 @@ std::size_t PostgreSQL::Pool::init(std::size_t count)
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 // Init of PostgreSQL::Pool::validateConnection()
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-bool PostgreSQL::Pool::validateConnection(const std::unique_ptr<pqxx::connection>& connection, std::unique_lock<std::mutex>* existing_lock)
+bool PostgreSQL::Pool::validateConnection(const std::unique_ptr<pqxx::connection>& connection)
 {
   static constexpr const char* fName = "PostgreSQL::Pool::validateConnection";
-
-  std::unique_lock<std::mutex> internal_lock;
-
-  if (existing_lock == nullptr || !existing_lock->owns_lock())
-  {
-    internal_lock = std::unique_lock<std::mutex>(PostgreSQL::Pool::connections_mutex);
-  }
 
   if (!connection)
   {
@@ -2161,7 +2153,7 @@ bool PostgreSQL::Pool::validateConnection(const std::unique_ptr<pqxx::connection
     spdlog::error("[pool] validate: unknown exception");
   }
 
-  PostgreSQL::Pool::closeConnection(connection);
+  // PostgreSQL::Pool::closeConnection(connection);
 
   return false;
 }
@@ -2201,21 +2193,19 @@ bool PostgreSQL::Pool::createConnection(std::size_t& pool_size)
     {
       ConnectionMetrics metrics;
 
-      {
-          std::lock_guard<std::mutex> lock(PostgreSQL::Pool::connections_mutex);
-
-          PostgreSQL::Pool::connections.emplace(
-              std::piecewise_construct,
-              std::forward_as_tuple(std::move(connection)),
-              std::forward_as_tuple(std::move(metrics))
-          );
-      }
+      PostgreSQL::Pool::connections.emplace(
+        std::piecewise_construct,
+        std::forward_as_tuple(std::move(connection)),
+        std::forward_as_tuple(std::move(metrics))
+      );
 
       spdlog::info("[{}] New valid connection created (total: {})",
                   fName, PostgreSQL::Pool::getTotalConnections());
 
       return true;
     }
+
+    connection->close();
   }
   catch (const pqxx::broken_connection& e)
   {
@@ -2316,71 +2306,42 @@ void PostgreSQL::Pool::healthCheckLoop()
 
   while (PostgreSQL::Pool::running_.load(std::memory_order_acquire))
   {
-    if (!first_start.load(std::memory_order_acquire) &&
-        !PostgreSQL::Pool::offline_.load(std::memory_order_acquire))
-    {
-      std::unique_lock<std::mutex> waitlock(PostgreSQL::Pool::shutdown_mutex_);
-      shutdown_cv_.wait_for(
-            waitlock,
-            PostgreSQL::Pool::getHealthCheckInterval(),
-            [] { return !PostgreSQL::Pool::running_.load(std::memory_order_acquire); }
-      );
-    }
-
-    bool isConnectionAvailable = false;
-    {
-      std::unique_lock<std::mutex> lock(PostgreSQL::Pool::connections_mutex);
-
-      isConnectionAvailable = condition.wait_for(lock,
-                                                 PostgreSQL::Pool::getMaxWait(),
-                                                 [] {
-                                                   return !PostgreSQL::Pool::connections.empty()
-                                                       || !PostgreSQL::Pool::running_.load(std::memory_order_acquire);
-                                                 });
-    }
-std::cout << (isConnectionAvailable?"TRUE":"FALSE") << "\n";
-    if (!PostgreSQL::Pool::running_.load(std::memory_order_acquire))
-    {
-      break;
-    }
-
     spdlog::trace("Running {}", fName);
 
-    // -------------------------
-    // Ora il mutex available_ è libero:
-    // puoi fare operazioni costose senza bloccare altri thread
-    // -------------------------
-
-    if (isConnectionAvailable)
     {
-      spdlog::debug("Performing health check on existing connections");
-
-      // std::lock_guard<std::mutex> lock(PostgreSQL::Pool::connections_mutex);
       std::unique_lock<std::mutex> lock(PostgreSQL::Pool::connections_mutex);
 
-      std::size_t totalConnections = PostgreSQL::Pool::connections.size();
-
-      for (auto it = PostgreSQL::Pool::connections.begin(); it != PostgreSQL::Pool::connections.end(); )
+      if (!PostgreSQL::Pool::connections.empty())
       {
-        const auto& [connection, metrics] = *it;
+        spdlog::debug("Performing health check on existing connections");
 
-        if (!metrics.is_acquired)
+        for (auto it = PostgreSQL::Pool::connections.begin(); it != PostgreSQL::Pool::connections.end(); ++it)
         {
-          if (PostgreSQL::Pool::validateConnection(connection, &lock))
+          auto& [connection, metrics] = *it;
+
+          if (!metrics.is_acquired)
           {
-            spdlog::trace("[{}] Connection is valid", fName);
-            ++it;
-            continue;
+            metrics.is_acquired = true;
+
+            if (PostgreSQL::Pool::validateConnection(connection))
+            {
+              spdlog::trace("[{}] Connection is valid", fName);
+
+              metrics.is_acquired = false;
+            }
+            else
+            {
+              spdlog::info("[{}] Invalid connection marked for removal", fName);
+              PostgreSQL::Pool::connectionsToRemove.push_back(it);
+            }
+
           }
-
-          spdlog::info("[{}] Connection is invalid", fName);
-
         }
-
-        ++it;
       }
 
-      // PostgreSQL::Pool::cleanupIdleConnections();
+      PostgreSQL::Pool::cleanupMarkedConnections();
+
+      std::size_t totalConnections = PostgreSQL::Pool::connections.size();
 
       int connectionDiff = static_cast<int>(totalConnections - PostgreSQL::Pool::getPoolSizeMin());
 
@@ -2389,22 +2350,17 @@ std::cout << (isConnectionAvailable?"TRUE":"FALSE") << "\n";
         PostgreSQL::Pool::init(static_cast<std::size_t>(-connectionDiff));
       }
     }
-    else
-    {
-      if (first_start.load(std::memory_order_acquire))
-      {
-        first_start.store(false, std::memory_order_release);
-        spdlog::debug("First initialization - no connections available");
-        PostgreSQL::Pool::init();
-      }
-      else
-      {
-        spdlog::debug("Health check timeout - reinitializing connections");
-        PostgreSQL::Pool::init();
-      }
-    }
 
     condition.notify_all();
+
+    {
+      std::unique_lock<std::mutex> waitlock(PostgreSQL::Pool::shutdown_mutex_);
+      shutdown_cv_.wait_for(
+            waitlock,
+            PostgreSQL::Pool::getHealthCheckInterval(),
+            [] { return !PostgreSQL::Pool::running_.load(std::memory_order_acquire); }
+      );
+    }
   }
 }
 // -------------------------------------------------------------------------------------------------
@@ -2430,7 +2386,7 @@ std::chrono::milliseconds PostgreSQL::Pool::calculateAverageDuration()
   int total_operations = 0;
 
   {
-    std::lock_guard<std::mutex> lock(PostgreSQL::Pool::connections_mutex);
+    std::unique_lock<std::mutex> lock(PostgreSQL::Pool::connections_mutex, std::try_to_lock);
 
     if (PostgreSQL::Pool::connections.empty())
     {
@@ -2472,38 +2428,40 @@ std::optional<const std::unique_ptr<pqxx::connection>*> PostgreSQL::Pool::acquir
 {
   static constexpr const char* fName = "PostgreSQL::Pool::acquireConnection";
 
-  std::unique_lock lock(PostgreSQL::Pool::connections_mutex);
-
-  bool success = PostgreSQL::Pool::condition.wait_for(lock,
-                                                      getMaxWait(),
-                                                      []{
-                                                        return !PostgreSQL::Pool::connections.empty()
-                                                            || !PostgreSQL::Pool::running_.load(std::memory_order_acquire);
-                                                      });
-
-  if (!success || !PostgreSQL::Pool::running_.load(std::memory_order_acquire))
+  if (!PostgreSQL::Pool::running_.load(std::memory_order_acquire))
   {
     return std::nullopt;
   }
 
-  for (auto it = PostgreSQL::Pool::connections.begin(); it != PostgreSQL::Pool::connections.end(); ++it)
   {
-    const auto& connection  = it->first                                                   ;
-    auto&       metrics     = it->second                                                  ;
+    std::unique_lock<std::mutex> lock(PostgreSQL::Pool::connections_mutex);
 
-    if (!metrics.is_acquired)
+    if (PostgreSQL::Pool::connections.empty())
     {
-      auto now = std::chrono::steady_clock::now()                                         ;
-      metrics.start_time    = now                                                         ;
-      metrics.last_acquired = now                                                         ;
-      metrics.is_acquired   = true                                                        ;
-      metrics.usage_count++                                                               ;
+      // Create emergency connection
+      PostgreSQL::Pool::init(1);
+    }
 
-      return &connection                                                                  ;
+    if (!PostgreSQL::Pool::connections.empty())
+    {
+      for (auto it = PostgreSQL::Pool::connections.begin(); it != PostgreSQL::Pool::connections.end(); ++it)
+      {
+        const auto& connection  = it->first                                                   ;
+        auto&       metrics     = it->second                                                  ;
+
+        if (!metrics.is_acquired)
+        {
+          auto now = std::chrono::steady_clock::now()                                         ;
+          metrics.start_time    = now                                                         ;
+          metrics.last_acquired = now                                                         ;
+          metrics.is_acquired   = true                                                        ;
+          metrics.usage_count++                                                               ;
+
+          return &connection                                                                  ;
+        }
+      }
     }
   }
-
-  lock.unlock();
 
   static std::atomic<std::size_t> limiter                                     {0}         ;
 
@@ -2554,13 +2512,13 @@ void PostgreSQL::Pool::closeConnection(const std::unique_ptr<pqxx::connection>& 
     }
 
     {
-      std::lock_guard<std::mutex> lock(PostgreSQL::Pool::connections_mutex);
+      std::unique_lock<std::mutex> lock(PostgreSQL::Pool::connections_mutex, std::try_to_lock);
 
       if (auto it = PostgreSQL::Pool::connections.find(connection); it != PostgreSQL::Pool::connections.end())
       {
         connection->close();
         spdlog::debug("[{}] Removed metrics for connection (used {} times)", fName, it->second.usage_count);
-        PostgreSQL::Pool::connections.erase(it);
+        it = PostgreSQL::Pool::connections.erase(it);
 
         return;
       }
@@ -2597,7 +2555,7 @@ void PostgreSQL::Pool::closeConnection(std::optional<PostgreSQL::ConnectionWrapp
     }
 
     {
-      std::lock_guard<std::mutex> lock(PostgreSQL::Pool::connections_mutex);
+      std::unique_lock<std::mutex> lock(PostgreSQL::Pool::connections_mutex, std::try_to_lock);
 
       auto* raw = connection.value().get ();
       auto it = std::find_if(
@@ -2612,7 +2570,7 @@ void PostgreSQL::Pool::closeConnection(std::optional<PostgreSQL::ConnectionWrapp
       {
         raw->close();
         spdlog::debug("[{}] Removed metrics for connection (used {} times)", fName, it->second.usage_count);
-        PostgreSQL::Pool::connections.erase(it);
+        it = PostgreSQL::Pool::connections.erase(it);
 
         return;
       }
@@ -2677,47 +2635,88 @@ void PostgreSQL::Pool::handleInvalidConnection(const std::unique_ptr<pqxx::conne
 
 
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-// Init of PostgreSQL::Pool::cleanupIdleConnections()
+// Init of PostgreSQL::Pool::cleanupMarkedConnections()
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-void PostgreSQL::Pool::cleanupIdleConnections()
+void PostgreSQL::Pool::cleanupMarkedConnections()
 {
-  std::lock_guard<std::mutex> lock(PostgreSQL::Pool::connections_mutex);
-  auto now = std::chrono::steady_clock::now();
+  static constexpr const char* fName = "PostgreSQL::Pool::cleanupMarkedConnections";
 
-  for (auto it = PostgreSQL::Pool::connections.begin(); it != PostgreSQL::Pool::connections.end(); )
+  for (auto it : PostgreSQL::Pool::connectionsToRemove)
   {
-    if (PostgreSQL::Pool::connections.size()<=PostgreSQL::Pool::getPoolSizeMin())
+    try
     {
-      break;
+      if (it != PostgreSQL::Pool::connections.end())
+      {
+        auto& [connection, metrics] = *it;
+        connection->close();
+        spdlog::debug("[{}] Removed connection (used {} times)", fName, metrics.usage_count);
+        PostgreSQL::Pool::connections.erase(it);
+      }
     }
-    const auto& [connection, metrics] = *it;
-
-    // Convert weak_ptr into a shared_ptr
-
-    // auto idle_time = std::chrono::duration_cast<std::chrono::milliseconds>(now - metrics.end_time);
-
-    // std::cout << (metrics.is_acquired.load(std::memory_order_acquire) ? "ACQUIRED" : "IDLE")
-    //           << " - Idle time: " << idle_time.count() << "ms"
-    //           << " - Timeout: " << PostgreSQL::Pool::getPoolTimeout().count() << "ms\n";
-
-    // Se la connessione non è in uso ed è inattiva da troppo tempo
-    if (metrics.is_acquired==false && ((now - metrics.end_time) > PostgreSQL::Pool::getPoolTimeout()))
+    catch (const std::exception& e)
     {
-      // Log delle metriche prima di rimuovere
-      auto total_usage_ms = std::chrono::duration_cast<std::chrono::milliseconds>(metrics.total_duration);
-      std::cout << "Closing connection - Total usage: "
-                << total_usage_ms.count() << "ms, "
-                << "Used " << metrics.usage_count << " times\n";
-
-      // USA LO shared_ptr OTTENUTO DAL LOCK
-      PostgreSQL::Pool::closeConnection(connection);
-    }
-    else
-    {
-      ++it;
+      spdlog::error("[{}] Error removing connection: {}", fName, e.what());
     }
   }
+
+  connectionsToRemove.clear();
 }
+// -------------------------------------------------------------------------------------------------
+// End of PostgreSQL::Pool::cleanupMarkedConnections()
+// -------------------------------------------------------------------------------------------------
+// -------------------------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+// +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+// Init of PostgreSQL::Pool::cleanupIdleConnections()
+// +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+// void PostgreSQL::Pool::cleanupIdleConnections()
+// {
+//   std::lock_guard<std::mutex> lock(PostgreSQL::Pool::connections_mutex);
+//   auto now = std::chrono::steady_clock::now();
+
+//   for (auto it = PostgreSQL::Pool::connections.begin(); it != PostgreSQL::Pool::connections.end(); )
+//   {
+//     if (PostgreSQL::Pool::connections.size()<=PostgreSQL::Pool::getPoolSizeMin())
+//     {
+//       break;
+//     }
+//     const auto& [connection, metrics] = *it;
+
+//     // Convert weak_ptr into a shared_ptr
+
+//     // auto idle_time = std::chrono::duration_cast<std::chrono::milliseconds>(now - metrics.end_time);
+
+//     // std::cout << (metrics.is_acquired.load(std::memory_order_acquire) ? "ACQUIRED" : "IDLE")
+//     //           << " - Idle time: " << idle_time.count() << "ms"
+//     //           << " - Timeout: " << PostgreSQL::Pool::getPoolTimeout().count() << "ms\n";
+
+//     // Se la connessione non è in uso ed è inattiva da troppo tempo
+//     if (!metrics.is_acquired && ((now - metrics.end_time) > PostgreSQL::Pool::getPoolTimeout()))
+//     {
+//       // Log delle metriche prima di rimuovere
+//       auto total_usage_ms = std::chrono::duration_cast<std::chrono::milliseconds>(metrics.total_duration);
+//       std::cout << "Closing connection - Total usage: "
+//                 << total_usage_ms.count() << "ms, "
+//                 << "Used " << metrics.usage_count << " times\n";
+
+//       // USA LO shared_ptr OTTENUTO DAL LOCK
+//       PostgreSQL::Pool::closeConnection(connection);
+//     }
+//     else
+//     {
+//       ++it;
+//     }
+//   }
+// }
 // -------------------------------------------------------------------------------------------------
 // End of PostgreSQL::Pool::cleanupIdleConnections()
 // -------------------------------------------------------------------------------------------------
@@ -2788,7 +2787,7 @@ void PostgreSQL::Pool::releaseConnection(std::optional<const std::unique_ptr<pqx
     // Estrai il pointer allo unique_ptr dall'optional
     const std::unique_ptr<pqxx::connection>* unique_ptr_ptr = connection_opt.value();
 
-    std::lock_guard<std::mutex> lock(PostgreSQL::Pool::connections_mutex);
+    std::unique_lock lock(PostgreSQL::Pool::connections_mutex, std::try_to_lock);
 
     // Cerca la unique_ptr corrispondente nella mappa
     for (auto it = PostgreSQL::Pool::connections.begin(); it != PostgreSQL::Pool::connections.end(); ++it)
@@ -2831,7 +2830,7 @@ void PostgreSQL::Pool::releaseConnection(std::optional<const std::unique_ptr<pqx
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 std::chrono::milliseconds PostgreSQL::Pool::getTotalDuration(const std::unique_ptr<pqxx::connection>& connection)
 {
-  std::lock_guard<std::mutex> lock(PostgreSQL::Pool::connections_mutex);
+  std::unique_lock<std::mutex> lock(PostgreSQL::Pool::connections_mutex, std::try_to_lock);
 
   if (auto it = PostgreSQL::Pool::connections.find(connection); it != PostgreSQL::Pool::connections.end())
   {
@@ -2859,7 +2858,7 @@ std::chrono::milliseconds PostgreSQL::Pool::getTotalDuration(const std::unique_p
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 std::chrono::milliseconds PostgreSQL::Pool::getLastDuration(const std::unique_ptr<pqxx::connection>& connection)
 {
-  std::lock_guard<std::mutex> lock(PostgreSQL::Pool::connections_mutex);
+  std::unique_lock<std::mutex> lock(PostgreSQL::Pool::connections_mutex, std::try_to_lock);
 
   if (auto it = PostgreSQL::Pool::connections.find(connection); it != PostgreSQL::Pool::connections.end())
   {
@@ -2888,7 +2887,7 @@ std::chrono::milliseconds PostgreSQL::Pool::getLastDuration(const std::unique_pt
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 int PostgreSQL::Pool::getUsageCount(const std::unique_ptr<pqxx::connection>& connection)
 {
-  std::lock_guard<std::mutex> lock(PostgreSQL::Pool::connections_mutex);
+  std::unique_lock<std::mutex> lock(PostgreSQL::Pool::connections_mutex, std::try_to_lock);
 
   if (auto it = PostgreSQL::Pool::connections.find(connection); it != PostgreSQL::Pool::connections.end())
   {
@@ -2923,7 +2922,7 @@ void PostgreSQL::Pool::printConnectionStats()
   std::size_t size = 0;
 
   {
-    std::lock_guard<std::mutex> lock(PostgreSQL::Pool::connections_mutex);
+    std::unique_lock<std::mutex> lock(PostgreSQL::Pool::connections_mutex, std::try_to_lock);
 
     size = PostgreSQL::Pool::connections.size();
 
