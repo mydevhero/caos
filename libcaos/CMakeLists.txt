@@ -52,6 +52,7 @@ add_library(${PROJECT_NAME} STATIC ${PROJECT_NAME}.cpp
   include/terminal_options.hpp
   environment.cpp
   include/environment.hpp
+  Middleware/Repository/Exception.hpp
 
 )
 set_target_properties(${PROJECT_NAME} PROPERTIES PREFIX "")
