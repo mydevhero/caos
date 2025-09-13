@@ -21,8 +21,18 @@ project(caos VERSION 0.0.1 LANGUAGES CXX)
 # Aggiungi la sottodirectory della libreria
 add_subdirectory(libcaos)
 
+add_library(repoexception STATIC
+    libcaos/Middleware/Repository/Exception.hpp
+)
+
+target_include_directories(repoexception PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/libcaos/Middleware/Repository
+)
+target_link_libraries(repoexception PUBLIC libcaos)
+
 add_executable(${PROJECT_NAME} src/${PROJECT_NAME}.cpp)
-target_link_libraries(${PROJECT_NAME} PRIVATE libcaos)
+
+target_link_libraries(${PROJECT_NAME} PRIVATE libcaos repoexception)
 
 add_dependencies(${PROJECT_NAME} increment_build)
 
