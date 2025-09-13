@@ -137,6 +137,7 @@ std::condition_variable           PostgreSQL::Pool::shutdown_cv_                
 //                    PostgreSQL::Pool::UniquePtrEqual> PostgreSQL::Pool::connections{};
 std::unordered_map<std::unique_ptr<pqxx::connection>, PostgreSQL::Pool::ConnectionMetrics, PostgreSQL::Pool::UniquePtrHash, PostgreSQL::Pool::UniquePtrEqual> PostgreSQL::Pool::connections{};
 std::vector<decltype(PostgreSQL::Pool::connections)::iterator> PostgreSQL::Pool::connectionsToRemove;
+std::atomic<bool> PostgreSQL::Pool::connectionRefused = false;
 
 PostgreSQL::Pool::config_s PostgreSQL::Pool::config = {
     .user = "",
@@ -161,7 +162,7 @@ PostgreSQL::Pool::config_s PostgreSQL::Pool::config = {
 std::thread PostgreSQL::Pool::healthCheckThread_{};
 
 std::atomic<bool>                PostgreSQL::Pool::running_{true};
-std::atomic<bool>               PostgreSQL::Pool::offline_              {false}     ;
+// std::atomic<bool>               PostgreSQL::Pool::offline_              {false}     ;
 
 PostgreSQL::Pool::Pool()
 {
@@ -1978,46 +1979,54 @@ std::size_t PostgreSQL::Pool::init(std::size_t count)
 
   std::size_t i = 0;
   std::size_t pool_size = (count>0) ? count : PostgreSQL::Pool::getPoolSizeMin();
-  std::atomic<std::size_t> offlineCounter{0};
+  // std::atomic<std::size_t> offlineCounter{0};
 
   spdlog::warn("[{}] New pool building", fName);
 
   while (i < pool_size                                                                              // Create connections until the requested size is reached
-         && running_.load(std::memory_order_acquire))                                               // Stop if a signal is detect
+         && running_.load(std::memory_order_acquire)                                                // Stop if a signal is detect
+         && !PostgreSQL::Pool::connectionRefused.load(std::memory_order_acquire))                   // Stop if a previous connection was refused
   {
-    if (createConnection(pool_size))                                                                // Create and validate connection
+    bool connectionResult;
+
+    try
     {
-      i++;
-
-      offlineCounter.store(0,std::memory_order_release);
-      PostgreSQL::Pool::offline_.store(false, std::memory_order_release);
-
-      spdlog::trace("[{}] New PostgreSQL connection established", fName);
+      connectionResult = createConnection(pool_size);
     }
-    else
+    catch (const repository::broken_connection& e)
     {
-      offlineCounter.fetch_add(1);
+      throw;
+      // offlineCounter.fetch_add(1);
 
-      if (offlineCounter.load(std::memory_order_acquire) > 5)
-      {
-        spdlog::error("[{}] PostgreSQL is unreachable", fName);
-        PostgreSQL::Pool::offline_.store(true, std::memory_order_release);
-        break;
-      }
+      // if (offlineCounter.load(std::memory_order_acquire) > 5)
+      // {
+      //   spdlog::error("[{}] PostgreSQL is unreachable", fName);
+      //   PostgreSQL::Pool::offline_.store(true, std::memory_order_release);
+      //   break;
+      // }
 
-      /*
-       * Don't flood the database with connection attempts when it's unreachable
-       * Just wait a little before retrying
-       */
-      {
-        std::unique_lock<std::mutex> waitlock(PostgreSQL::Pool::shutdown_mutex_);
-        PostgreSQL::Pool::shutdown_cv_.wait_for(
-          waitlock,
-          PostgreSQL::Pool::getMaxWait(),
-          [] { return !PostgreSQL::Pool::running_.load(std::memory_order_acquire); }
-        );
-      }
+      // /*
+      //  * Don't flood the database with connection attempts when it's unreachable
+      //  * Just wait a little before retrying
+      //  */
+      // {
+      //   std::unique_lock<std::mutex> waitlock(PostgreSQL::Pool::shutdown_mutex_);
+      //   PostgreSQL::Pool::shutdown_cv_.wait_for(
+      //     waitlock,
+      //     PostgreSQL::Pool::getMaxWait(),
+      //     [] { return !PostgreSQL::Pool::running_.load(std::memory_order_acquire); }
+      //   );
+      // }
+
+      // throw;
     }
+
+    i++;
+
+    // offlineCounter.store(0,std::memory_order_release);
+    // PostgreSQL::Pool::offline_.store(false, std::memory_order_release);
+
+    spdlog::trace("[{}] New PostgreSQL connection established", fName);
   }
 
   return i;
@@ -2142,7 +2151,7 @@ bool PostgreSQL::Pool::validateConnection(const std::unique_ptr<pqxx::connection
   }
   catch (const pqxx::broken_connection& e)
   {
-    spdlog::error("[{}] 3Broken connection: {}", fName, e.what());
+    throw repository::broken_connection("Connection invalid");
   }
   catch (const std::exception& e)
   {
@@ -2202,6 +2211,8 @@ bool PostgreSQL::Pool::createConnection(std::size_t& pool_size)
       spdlog::info("[{}] New valid connection created (total: {})",
                   fName, PostgreSQL::Pool::getTotalConnections());
 
+      PostgreSQL::Pool::connectionRefused = false;
+
       return true;
     }
 
@@ -2209,11 +2220,7 @@ bool PostgreSQL::Pool::createConnection(std::size_t& pool_size)
   }
   catch (const pqxx::broken_connection& e)
   {
-    spdlog::error("[{}] 1Broken connection: {}", fName, e.what());
-  }
-  catch (const pqxx::sql_error& e)
-  {
-    spdlog::error("[{}] SQL error during connection creation: {}", fName, e.what());
+    throw repository::broken_connection("Server unreachable or port closed");
   }
   catch (const std::exception& e)
   {
@@ -2310,44 +2317,49 @@ void PostgreSQL::Pool::healthCheckLoop()
 
     {
       std::unique_lock<std::mutex> lock(PostgreSQL::Pool::connections_mutex);
-
-      if (!PostgreSQL::Pool::connections.empty())
+      try
       {
-        spdlog::debug("Performing health check on existing connections");
-
-        for (auto it = PostgreSQL::Pool::connections.begin(); it != PostgreSQL::Pool::connections.end(); ++it)
+        if (!PostgreSQL::Pool::connections.empty())
         {
-          auto& [connection, metrics] = *it;
+          spdlog::debug("Performing health check on existing connections");
 
-          if (!metrics.is_acquired)
+          for (auto it = PostgreSQL::Pool::connections.begin(); it != PostgreSQL::Pool::connections.end(); ++it)
           {
-            metrics.is_acquired = true;
+            auto& [connection, metrics] = *it;
 
-            if (PostgreSQL::Pool::validateConnection(connection))
+            if (!metrics.is_acquired)
             {
-              spdlog::trace("[{}] Connection is valid", fName);
+              metrics.is_acquired = true;
 
-              metrics.is_acquired = false;
-            }
-            else
-            {
-              spdlog::info("[{}] Invalid connection marked for removal", fName);
-              PostgreSQL::Pool::connectionsToRemove.push_back(it);
-            }
+              if (PostgreSQL::Pool::validateConnection(connection))
+              {
+                spdlog::trace("[{}] Connection is valid", fName);
 
+                metrics.is_acquired = false;
+              }
+              else
+              {
+                spdlog::info("[{}] Invalid connection marked for removal", fName);
+                PostgreSQL::Pool::connectionsToRemove.push_back(it);
+              }
+            }
           }
         }
+
+        PostgreSQL::Pool::cleanupMarkedConnections();
+
+        std::size_t totalConnections = PostgreSQL::Pool::connections.size();
+
+        int connectionDiff = static_cast<int>(totalConnections - PostgreSQL::Pool::getPoolSizeMin());
+
+        if (connectionDiff < 0)
+        {
+          PostgreSQL::Pool::init(static_cast<std::size_t>(-connectionDiff));
+        }
       }
-
-      PostgreSQL::Pool::cleanupMarkedConnections();
-
-      std::size_t totalConnections = PostgreSQL::Pool::connections.size();
-
-      int connectionDiff = static_cast<int>(totalConnections - PostgreSQL::Pool::getPoolSizeMin());
-
-      if (connectionDiff < 0)
+      catch (const repository::broken_connection& e)
       {
-        PostgreSQL::Pool::init(static_cast<std::size_t>(-connectionDiff));
+        spdlog::error("[{}] PostgreSQL unreachable or port closed", fName);
       }
     }
 
@@ -2358,7 +2370,10 @@ void PostgreSQL::Pool::healthCheckLoop()
       shutdown_cv_.wait_for(
             waitlock,
             PostgreSQL::Pool::getHealthCheckInterval(),
-            [] { return !PostgreSQL::Pool::running_.load(std::memory_order_acquire); }
+            []{
+                PostgreSQL::Pool::connectionRefused = false;
+                return !PostgreSQL::Pool::running_.load(std::memory_order_acquire);
+            }
       );
     }
   }
@@ -2438,8 +2453,15 @@ std::optional<const std::unique_ptr<pqxx::connection>*> PostgreSQL::Pool::acquir
 
     if (PostgreSQL::Pool::connections.empty())
     {
-      // Create emergency connection
-      PostgreSQL::Pool::init(1);
+      // Pool is empty! Do not await healthCheckLoop(). Create emergency connection
+      try
+      {
+        PostgreSQL::Pool::init(1);
+      }
+      catch (const repository::broken_connection& e)
+      {
+        throw;
+      }
     }
 
     if (!PostgreSQL::Pool::connections.empty())
@@ -2451,13 +2473,27 @@ std::optional<const std::unique_ptr<pqxx::connection>*> PostgreSQL::Pool::acquir
 
         if (!metrics.is_acquired)
         {
-          auto now = std::chrono::steady_clock::now()                                         ;
-          metrics.start_time    = now                                                         ;
-          metrics.last_acquired = now                                                         ;
-          metrics.is_acquired   = true                                                        ;
-          metrics.usage_count++                                                               ;
+          try
+          {
+            if (PostgreSQL::Pool::validateConnection(connection))
+            {
+              auto now = std::chrono::steady_clock::now()                                     ;
+              metrics.start_time    = now                                                     ;
+              metrics.last_acquired = now                                                     ;
+              metrics.is_acquired   = true                                                    ;
+              metrics.usage_count++                                                           ;
 
-          return &connection                                                                  ;
+              return &connection                                                              ;
+            }
+          }
+          catch (const repository::broken_connection& e)
+          {
+            // Remove connection
+            PostgreSQL::Pool::connectionsToRemove.push_back(it);
+            PostgreSQL::Pool::cleanupMarkedConnections();
+
+            throw;
+          }
         }
       }
     }
@@ -2751,6 +2787,8 @@ void PostgreSQL::Pool::cleanupMarkedConnections()
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 std::optional<PostgreSQL::ConnectionWrapper> PostgreSQL::Pool::acquire()
 {
+  try
+  {
     auto connection_opt = PostgreSQL::Pool::acquireConnection();
 
     if (connection_opt) {
@@ -2760,8 +2798,13 @@ std::optional<PostgreSQL::ConnectionWrapper> PostgreSQL::Pool::acquire()
               PostgreSQL::Pool::releaseConnection(conn_ptr);
             });
     }
+  }
+  catch (const repository::broken_connection& e)
+  {
+    throw;
+  }
 
-    return std::nullopt;
+  return std::nullopt;
 }
 // -------------------------------------------------------------------------------------------------
 // End of PostgreSQL::Pool::acquire()

@@ -1,8 +1,9 @@
 #pragma once
 #include <optional>
 
-class IRepository {
-public:
+class IRepository
+{
+  public:
     IRepository() = default;
 
     virtual ~IRepository() = default;

@@ -6,6 +6,8 @@
  */
 
 #include <libcaos.hpp>
+#include <Exception.hpp>
+
 #include <csignal>
 #include <atomic>
 #include <memory>
@@ -57,14 +59,25 @@ int main(int argc, char* argv[])
         res.set_header("Content-Type", "text/html");
         res.body = ret.value();
         res.code = 200;
+        res.end();
+      }
+      else
+      {///il db è spento ma non viene lanciato il catch, wtf!
+        spdlog::trace("EEE");
+        // return  ret.value(); // std::string
+        res.set_header("Content-Type", "text/html");
+        res.body = "OUUUU";
+        res.code = 200;
+        res.end();
       }
     }
-    catch (const pqxx::broken_connection& e)
+    catch (const repository::broken_connection& e)
     {
-      std::cout << "A1\n";
+      std::cout << "A1\n" << e.what() << "\n";
       res.set_header("Content-Type", "text/plain");
       res.body = "Repository unavailable";
       res.code = 503;
+      res.end();
     }
     catch (const pqxx::sql_error& e)
     {

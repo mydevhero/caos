@@ -2,6 +2,7 @@
 
 #include <libcaos/config.hpp>
 #include "../../IRepository.hpp"
+#include "../../Exception.hpp"
 #include <pqxx/pqxx>
 #include <queue>
 #include <mutex>
@@ -47,7 +48,7 @@ class PostgreSQL final: public IRepository
         static std::mutex                               shutdown_mutex_                   ;
         static std::condition_variable                  condition                         ;
         static std::atomic<bool>                        running_                          ;
-        static std::atomic<bool>                        offline_                          ;
+        // static std::atomic<bool>                        offline_                          ;
         static std::thread                              healthCheckThread_                ;
 
         struct ConnectionMetrics
@@ -90,6 +91,7 @@ class PostgreSQL final: public IRepository
         static std::vector<decltype(connections)::iterator>  connectionsToRemove;
 
         static std::mutex                               connections_mutex                 ;
+        static std::atomic<bool>                        connectionRefused                ;
         // static std::shared_mutex                        connections_mutex                 ;
 
         struct config_s
@@ -172,6 +174,38 @@ class PostgreSQL final: public IRepository
         static void                                     printConnectionStats()            ;
         static bool inline                              checkPoolSize(std::size_t&)       ;
 
+        enum class ConnectionErrorType {
+            connectionRefused,
+            TIMEOUT,
+            AUTHENTICATION_FAILED,
+            NETWORK_ERROR,
+            UNKNOWN_ERROR
+        };
+
+        static ConnectionErrorType analyzeConnectionError(const std::string& msg)
+        {
+          if (msg.find("Connection refused") != std::string::npos ||
+              msg.find("econnrefused") != std::string::npos)
+          {
+            return ConnectionErrorType::connectionRefused;
+          }
+          // else if (msg.find("timeout") != std::string::npos)
+          // {
+          //   return ConnectionErrorType::TIMEOUT;
+          // }
+          // else if (msg.find("authentication") != std::string::npos ||
+          //          msg.find("password") != std::string::npos)
+          // {
+          //   return ConnectionErrorType::AUTHENTICATION_FAILED;
+          // }
+          // else if (msg.find("network") != std::string::npos ||
+          //          msg.find("host") != std::string::npos)
+          // {
+          //   return ConnectionErrorType::NETWORK_ERROR;
+          // }
+
+          return ConnectionErrorType::UNKNOWN_ERROR;
+        }
       public:
         static void                                     closeConnection(const std::unique_ptr<pqxx::connection>&)       ;
         static void                                     closeConnection(std::optional<PostgreSQL::ConnectionWrapper>& connection);
@@ -199,11 +233,11 @@ class PostgreSQL final: public IRepository
     std::atomic<bool>                           running_{true}                            ;
 
   public:
-    class broken_connection : public std::runtime_error {
-      public:
-        explicit broken_connection(const std::string& msg)
-          : std::runtime_error(msg) {}
-    };
+    // class broken_connection : public std::runtime_error {
+    //   public:
+    //     explicit broken_connection(const std::string& msg)
+    //       : std::runtime_error(msg) {}
+    // };
 
     PostgreSQL();
 
@@ -249,7 +283,7 @@ class PostgreSQL final: public IRepository
         // throw pqxx::broken_connection("Database connection unavailable - cannot acquire connection from pool");
 
       }
-      catch (const pqxx::broken_connection& e)
+      catch (const repository::broken_connection& e)
       {
         // PostgreSQL::Pool::closeConnection(*(connection_opt.value().getRaw()));
         // CAOS_POSTGRESQL_CLOSE_CONNECTION()

@@ -162,7 +162,7 @@ constexpr int CAOS_UNPRIVILEGED_PORT_MAX = 49151;
 #define CAOS_DEFAULT_DBKEEPALIVES_IDLE                      30
 #define CAOS_DEFAULT_DBKEEPALIVES_INTERVAL                  10
 #define CAOS_DEFAULT_DBKEEPALIVES_COUNT                     5
-#define CAOS_DEFAULT_DBCONNECT_TIMEOUT                      30
+#define CAOS_DEFAULT_DBCONNECT_TIMEOUT                      2
 #define CAOS_DEFAULT_DBMAXWAIT                              5000                                    /* milliseconds */
 #define CAOS_DEFAULT_DBHEALTHCHECKINTERVAL                  30000                                   /* milliseconds */
 
