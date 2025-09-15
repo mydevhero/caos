@@ -53,14 +53,24 @@ add_library(${PROJECT_NAME} STATIC ${PROJECT_NAME}.cpp
   environment.cpp
   include/environment.hpp
   Middleware/Repository/Exception.hpp
-
 )
 set_target_properties(${PROJECT_NAME} PROPERTIES PREFIX "")
 
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  message(STATUS "Sanitizer abilitati per build Debug")
+  target_compile_options(${PROJECT_NAME} PRIVATE
+    -fsanitize=address
+    -fsanitize=undefined
+    -fsanitize=leak
+    -fno-omit-frame-pointer
+  )
+endif()
+
 include(FetchContent)
 
-find_package(PostgreSQL REQUIRED) # apt install libpq-dev
-find_package(cxxopts REQUIRED)    # apt install libcxxopts-dev
+# apt install libpq-dev libcxxopts-dev
+find_package(PostgreSQL REQUIRED)
+find_package(cxxopts REQUIRED)
 # find_package(CURL REQUIRED)       # apt install libcurl4-openssl-dev
 
 # Fetch libpqxx
@@ -68,6 +78,20 @@ FetchContent_Declare(
     libpqxx
     GIT_REPOSITORY https://github.com/jtv/libpqxx.git
     GIT_TAG 7.10.1
+)
+
+# Recupera hiredis
+FetchContent_Declare(
+  hiredis
+  GIT_REPOSITORY https://github.com/redis/hiredis.git
+  GIT_TAG v1.1.0 # Sostituisci con la versione che preferisci
+)
+
+# Recupera redis++
+FetchContent_Declare(
+  redis-plus-plus
+  GIT_REPOSITORY https://github.com/sewenew/redis-plus-plus.git
+  GIT_TAG 1.3.7 # Sostituisci con la versione che preferisci
 )
 
 # Fetch jwt-cpp
@@ -95,8 +119,16 @@ set(PQXX_BUILD_DOC OFF CACHE BOOL "Build documentation")
 set(BUILD_TEST OFF CACHE BOOL "Build tests")
 set(SKIP_BUILD_TEST ON CACHE BOOL "Skip build test")
 
-FetchContent_MakeAvailable(libpqxx spdlog) #jwt-cpp libfort)
+FetchContent_MakeAvailable(libpqxx spdlog hiredis redis-plus-plus) #jwt-cpp libfort)
 
+# Applica la patch automatica:
+include("cmake/patch_redis_plus_plus_utils.cmake")
+
+
+# <------------ add redis-plus-plus dependency -------------->
+# NOTE: this should be *sw* NOT *redis++*
+# find_path(REDIS_PLUS_PLUS_HEADER sw)
+# find_library(REDIS_PLUS_PLUS_LIB redis++)
 # CPMAddPackage(
 #   Crow
 #   VERSION 1.2.1.2
@@ -114,11 +146,15 @@ target_include_directories(${PROJECT_NAME} PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/repository
     ${CMAKE_BINARY_DIR}  # Per config.hpp se necessario
+    ${hiredis_SOURCE_DIR}
+    ${redis-plus-plus_SOURCE_DIR}/src
 )
 
 target_link_libraries(
     ${PROJECT_NAME} PUBLIC
     spdlog::spdlog
+    redis++::redis++
+    hiredis
     # Crow::Crow
     pqxx
     # jwt-cpp

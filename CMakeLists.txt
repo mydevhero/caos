@@ -34,6 +34,31 @@ add_executable(${PROJECT_NAME} src/${PROJECT_NAME}.cpp)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE libcaos repoexception)
 
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  message(STATUS "Sanitizer abilitati per build Debug")
+
+  target_compile_options(${PROJECT_NAME} PRIVATE
+    -fsanitize=address
+    -fsanitize=undefined
+    -fsanitize=leak
+    -fno-omit-frame-pointer
+  )
+
+  target_link_options(${PROJECT_NAME} PRIVATE
+    -fsanitize=address
+    -fsanitize=undefined
+    -fsanitize=leak
+  )
+endif()
+
+
+
+
+
+
+
+
+
 add_dependencies(${PROJECT_NAME} increment_build)
 
 CPMAddPackage(
