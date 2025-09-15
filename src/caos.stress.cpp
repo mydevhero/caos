@@ -45,16 +45,35 @@ void worker_thread(int thread_id) {
       break;
     }
 
-    auto result = mycaos->repository->echoString(std::to_string(current_i));
-
-    if (result.has_value())
+    try
     {
-      global_i++;
+      auto result = mycaos->repository->echoString(std::to_string(current_i));
 
-      if (current_i%10000==0)
+      if (result.has_value())
       {
-        std::cout << current_i << "-" << result.value()<< "\n";
+        global_i++;
+
+        if (current_i%10000==0)
+        {
+          std::cout << current_i << "-" << result.value()<< "\n";
+        }
       }
+    }
+    catch (const repository::broken_connection& e)
+    {
+      spdlog::info("Repository unavailable");
+    }
+    catch (const pqxx::sql_error& e)
+    {
+      spdlog::error("SQL error during connection creation: {}", e.what());
+    }
+    catch (const std::exception& e)
+    {
+      spdlog::critical("Exception during connection creation: {}", e.what());
+    }
+    catch(...)
+    {
+      spdlog::error("Can't execute echoString() query");
     }
 
     // if (current_i>500000)
