@@ -25,13 +25,17 @@
 
 
 static constexpr const char* _logo=R"(
- __  __ __ _  _ __   _ __
- \ \/ // _` || '_ \ | '_ \
-  >  <| (_| || |_) || |_) |
- /_/\_\\__,_|| .__/ | .__/
-             | |    | |
-             |_|    |_|
-___________________________)";
+    ,o888888o.           .8.           ,o888888o.       d888888o.
+   8888     `88.        .888.       . 8888     `88.   .`8888:' `88.
+,8 8888       `8.      :88888.     ,8 8888       `8b  8.`8888.   Y8
+88 8888               . `88888.    88 8888        `8b `8.`8888.
+88 8888              .8. `88888.   88 8888         88  `8.`8888.
+88 8888             .8`8. `88888.  88 8888         88   `8.`8888.
+88 8888            .8' `8. `88888. 88 8888        ,8P    `8.`8888.
+`8 8888       .8' .8'   `8. `88888.`8 8888       ,8P 8b   `8.`8888.
+   8888     ,88' .888888888. `88888.` 8888     ,88'  `8b.  ;8.`8888
+    `8888888P'  .8'       `8. `88888.  `8888888P'     `Y8888P ,88P'
+___________________________________________________________________)";
 
 #define CAOS_OFFICIALNAME                                     "Crow App On Steroids"
 #define CAOS_LIBNAME                                          "caos"
@@ -55,7 +59,7 @@ static const std::string libname = CAOS_LIBNAME;
 
 #define CAOS_SEVERITY_LEVEL_BEFORE_LOG_START                  spdlog::level::trace
 
-#define CAOS_LOG_SEVERITY_ON_DEV_VALUE                        "trace"
+#define CAOS_LOG_SEVERITY_ON_DEV_VALUE                        "warn"/*"trace"*/
 #define CAOS_LOG_SEVERITY_ON_TEST_VALUE                       "debug"
 #define CAOS_LOG_SEVERITY_ON_PRODUCTION_VALUE                 "warn"
 
@@ -184,7 +188,7 @@ constexpr int CAOS_UNPRIVILEGED_PORT_MAX = 49151;
 // #define CAOS_DEFAULT_DBHEALTHCHECKINTERVAL_ON_DEV_OR_TEST   30000 /* milliseconds */
 
 #define CAOS_LOG_THRESHOLD_CONNECTION_LIMIT_EXCEEDED        50
-
+#define VALIDATE_CONNECTION_BEFORE_ACQUIRE                  0
 #define CAOS_DEFAULT_DATABASE_TYPE                          DatabaseType::PostgreSQL
 //--------------------------------------------------------------------------------------------------
 

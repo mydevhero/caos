@@ -2475,8 +2475,13 @@ std::optional<const std::unique_ptr<pqxx::connection>*> PostgreSQL::Pool::acquir
         {
           try
           {
+            #if VALIDATE_CONNECTION_BEFORE_ACQUIRE
             if (PostgreSQL::Pool::validateConnection(connection))
             {
+            #else
+            if (connection->is_open())
+            {
+            #endif
               auto now = std::chrono::steady_clock::now()                                     ;
               metrics.start_time    = now                                                     ;
               metrics.last_acquired = now                                                     ;
@@ -2485,6 +2490,12 @@ std::optional<const std::unique_ptr<pqxx::connection>*> PostgreSQL::Pool::acquir
 
               return &connection                                                              ;
             }
+            #ifndef VALIDATE_CONNECTION_BEFORE_ACQUIRE
+            else
+            {
+              throw pqxx::broken_connection("Connection lost");
+            }
+            #endif
           }
           catch (const repository::broken_connection& e)
           {
