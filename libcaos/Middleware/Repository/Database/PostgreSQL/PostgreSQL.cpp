@@ -2475,7 +2475,7 @@ std::optional<const std::unique_ptr<pqxx::connection>*> PostgreSQL::Pool::acquir
         {
           try
           {
-            #if VALIDATE_CONNECTION_BEFORE_ACQUIRE
+            #if VALIDATE_CONNECTION_BEFORE_ACQUIRE==1
             if (PostgreSQL::Pool::validateConnection(connection))
             {
             #else
@@ -2490,11 +2490,8 @@ std::optional<const std::unique_ptr<pqxx::connection>*> PostgreSQL::Pool::acquir
 
               return &connection                                                              ;
             }
-            #ifndef VALIDATE_CONNECTION_BEFORE_ACQUIRE
-            else
-            {
-              throw pqxx::broken_connection("Connection lost");
-            }
+            #if VALIDATE_CONNECTION_BEFORE_ACQUIRE==0
+            throw pqxx::broken_connection("Connection lost");
             #endif
           }
           catch (const repository::broken_connection& e)
