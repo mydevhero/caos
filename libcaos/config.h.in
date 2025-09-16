@@ -188,7 +188,8 @@ constexpr int CAOS_UNPRIVILEGED_PORT_MAX = 49151;
 // #define CAOS_DEFAULT_DBHEALTHCHECKINTERVAL_ON_DEV_OR_TEST   30000 /* milliseconds */
 
 #define CAOS_LOG_THRESHOLD_CONNECTION_LIMIT_EXCEEDED        50
-#define VALIDATE_CONNECTION_BEFORE_ACQUIRE                  0
+#define VALIDATE_CONNECTION_BEFORE_ACQUIRE                  1
+#define VALIDATE_USING_TRANSACTION                          0
 #define CAOS_DEFAULT_DATABASE_TYPE                          DatabaseType::PostgreSQL
 //--------------------------------------------------------------------------------------------------
 

@@ -61,59 +61,7 @@ constexpr const char* defaultFinal                            =
 
 
 
-// PostgreSQL::ConnectionWrapper::ConnectionWrapper(/*std::optional<std::unique_ptr<pqxx::connection>>*/ std::optional<std::reference_wrapper<std::unique_ptr<pqxx::connection>>> connection,
-//                                                  releaseF release_func)
-// {
-//   if (connection)
-//   {
-//     this->connection    = connection->get();
-//     this->release_func  = std::move(release_func);
-//   }
-// }
 
-// PostgreSQL::ConnectionWrapper::~ConnectionWrapper()
-// {
-//   if (!this->released && this->connection && this->release_func)
-//   {
-//     this->release_func(std::move(this->connection));
-//   }
-// }
-
-// PostgreSQL::ConnectionWrapper::ConnectionWrapper(PostgreSQL::ConnectionWrapper&& other) noexcept
-//   : connection(std::move(other.connection)),
-//     release_func(std::move(other.release_func)),
-//     released(other.released)
-// {
-//   other.released = true;
-// }
-
-// PostgreSQL::ConnectionWrapper& PostgreSQL::ConnectionWrapper::ConnectionWrapper::operator=(PostgreSQL::ConnectionWrapper&& other) noexcept
-// {
-//   if (this != &other)
-//   {
-//     // Release current connection
-//     if (!this->released && this->connection && this->release_func)
-//     {
-//       this->release_func(std::move(this->connection));
-//     }
-
-//     this->connection    = std::move(other.connection);
-//     this->release_func  = std::move(other.release_func);
-//     this->released      = other.released;
-//     other.released      = true;
-//   }
-
-//   return *this;
-// }
-
-// void PostgreSQL::ConnectionWrapper::release()
-// {
-//   if (!this->released && this->connection && this->release_func)
-//   {
-//     this->release_func(std::move(this->connection));
-//     this->released = true;
-//   }
-// }
 
 
 /***************************************************************************************************
@@ -123,21 +71,22 @@ constexpr const char* defaultFinal                            =
  *
  *
  **************************************************************************************************/
-std::mutex                        PostgreSQL::Pool::shutdown_mutex_{};
-std::mutex                        PostgreSQL::Pool::connections_mutex{};
-// std::shared_mutex                 PostgreSQL::Pool::connections_mutex{};
+std::mutex                        PostgreSQL::Pool::shutdown_mutex_{}                     ;
+std::mutex                        PostgreSQL::Pool::connections_mutex{}                   ;
 
-std::condition_variable           PostgreSQL::Pool::condition{}                      ;
-std::condition_variable           PostgreSQL::Pool::shutdown_cv_                    ;
-// PostgreSQL::Pool::Stats PostgreSQL::Pool::stats{};
+std::condition_variable           PostgreSQL::Pool::condition{}                           ;
+std::condition_variable           PostgreSQL::Pool::shutdown_cv_                          ;
 
-// std::unordered_map<std::unique_ptr<pqxx::connection>,
-//                    PostgreSQL::Pool::ConnectionMetrics,
-//                    PostgreSQL::Pool::UniquePtrHash,
-//                    PostgreSQL::Pool::UniquePtrEqual> PostgreSQL::Pool::connections{};
-std::unordered_map<std::unique_ptr<pqxx::connection>, PostgreSQL::Pool::ConnectionMetrics, PostgreSQL::Pool::UniquePtrHash, PostgreSQL::Pool::UniquePtrEqual> PostgreSQL::Pool::connections{};
-std::vector<decltype(PostgreSQL::Pool::connections)::iterator> PostgreSQL::Pool::connectionsToRemove;
-std::atomic<bool> PostgreSQL::Pool::connectionRefused = false;
+std::unordered_map<std::unique_ptr<pqxx::connection>,
+                   PostgreSQL::Pool::ConnectionMetrics,
+                   PostgreSQL::Pool::UniquePtrHash,
+                   PostgreSQL::Pool::UniquePtrEqual>
+                                  PostgreSQL::Pool::connections{}                         ;
+
+std::vector<decltype(PostgreSQL::Pool::connections)::iterator>
+                                  PostgreSQL::Pool::connectionsToRemove                   ;
+
+std::atomic<bool>                 PostgreSQL::Pool::connectionRefused = false             ;
 
 PostgreSQL::Pool::config_s PostgreSQL::Pool::config = {
     .user = "",
@@ -159,10 +108,13 @@ PostgreSQL::Pool::config_s PostgreSQL::Pool::config = {
     .health_check_interval = std::chrono::milliseconds(0)
 };
 
-std::thread PostgreSQL::Pool::healthCheckThread_{};
+std::thread                       PostgreSQL::Pool::healthCheckThread_{}                  ;
 
-std::atomic<bool>                PostgreSQL::Pool::running_{true};
-// std::atomic<bool>               PostgreSQL::Pool::offline_              {false}     ;
+std::atomic<bool>                 PostgreSQL::Pool::running_{true}                        ;
+
+
+
+
 
 PostgreSQL::Pool::Pool()
 {
@@ -202,33 +154,10 @@ PostgreSQL::Pool::~Pool()
 
   PostgreSQL::Pool::condition.notify_all();
 
-  if (PostgreSQL::Pool::healthCheckThread_.joinable()) {
-      PostgreSQL::Pool::healthCheckThread_.join();
+  if (PostgreSQL::Pool::healthCheckThread_.joinable())
+  {
+    PostgreSQL::Pool::healthCheckThread_.join();
   }
-
-  // std::lock_guard<std::mutex> lock(PostgreSQL::Pool::available_mutex_);
-
-  // while (!PostgreSQL::Pool::available_.empty())
-  // {
-  //   auto connection = PostgreSQL::Pool::available_.front();
-
-  //   if (connection)
-  //   {
-  //     try
-  //     {
-  //       if (connection->is_open())
-  //       {
-  //         connection->close();
-  //       }
-  //     }
-  //     catch (...)
-  //     {
-  //       // Ignore errors while cleanup
-  //     }
-  //   }
-
-  //   PostgreSQL::Pool::available_.pop();
-  // }
 }
 /***************************************************************************************************
  *
@@ -270,8 +199,6 @@ bool PostgreSQL::Pool::isDevOrTestEnv() noexcept
 void PostgreSQL::Pool::setUser()
 {
   static constexpr const char* fName = "PostgreSQL::Pool::setUser";
-
-
 
   try
   {
@@ -364,8 +291,6 @@ void PostgreSQL::Pool::setPass()
 {
   static constexpr const char* fName = "PostgreSQL::Pool::setPass";
 
-
-
   try
   {
     // Set primary database password for production environment ------------------------------------
@@ -455,8 +380,6 @@ void PostgreSQL::Pool::setPass()
 void PostgreSQL::Pool::setHost()
 {
   static constexpr const char* fName = "PostgreSQL::Pool::setHost";
-
-
 
   try
   {
@@ -560,8 +483,6 @@ void PostgreSQL::Pool::setHost()
 void PostgreSQL::Pool::setPort()
 {
   static constexpr const char* fName = "PostgreSQL::Pool::setPort";
-
-
 
   try
   {
@@ -670,8 +591,6 @@ void PostgreSQL::Pool::setName()
 {
   static constexpr const char* fName = "PostgreSQL::Pool::setName";
 
-
-
   try
   {
     // Set primary database name for production environment ----------------------------------------
@@ -756,8 +675,6 @@ void PostgreSQL::Pool::setName()
     std::exit(1);
   }
 
-
-
   // Final -----------------------------------------------------------------------------------------
   spdlog::info(defaultFinal,
                fName,
@@ -785,8 +702,6 @@ void PostgreSQL::Pool::setName()
 void PostgreSQL::Pool::setPoolSizeMin()
 {
   static constexpr const char* fName = "PostgreSQL::Pool::setPoolSizeMin";
-
-
 
   try
   {
@@ -851,8 +766,6 @@ void PostgreSQL::Pool::setPoolSizeMin()
     std::exit(1);
   }
 
-
-
   // Final -----------------------------------------------------------------------------------------
   spdlog::info(defaultFinal,
                fName,
@@ -880,11 +793,9 @@ void PostgreSQL::Pool::setPoolSizeMax()
 {
   static constexpr const char* fName = "PostgreSQL::Pool::setPoolSizeMax";
 
-
-
   try
   {
-    // Set primary database poolsizemax for production environment ------------------------------------
+    // Set primary database poolsizemax for production environment ---------------------------------
     const char* poolsizemax = std::getenv(CAOS_ENV_DBPOOLSIZEMAX_NAME);
 
     if (PostgreSQL::Pool::terminalPtr->has(CAOS_OPT_DBPOOLSIZEMAX_NAME))
@@ -944,8 +855,6 @@ void PostgreSQL::Pool::setPoolSizeMax()
     spdlog::critical("[{}] : {}",fName,e.what());
     std::exit(1);
   }
-
-
 
   // Final -----------------------------------------------------------------------------------------
   spdlog::info(defaultFinal,
@@ -1069,7 +978,7 @@ void PostgreSQL::Pool::setPoolTimeout()
 
   try
   {
-    // Set primary database pooltimeout for production environment ------------------------------------
+    // Set primary database pooltimeout for production environment ---------------------------------
     const char* pooltimeout = std::getenv(CAOS_ENV_DBPOOLTIMEOUT_NAME);
 
     if (PostgreSQL::Pool::terminalPtr->has(CAOS_OPT_DBPOOLTIMEOUT_NAME))
@@ -1340,7 +1249,7 @@ void PostgreSQL::Pool::setKeepAlivesIdle()
 
 
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-// Init of PostgreSQL::Pool::setKeepAlives_Interval()
+// Init of PostgreSQL::Pool::setKeepAlivesInterval()
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 void PostgreSQL::Pool::setKeepAlivesInterval()
 {
@@ -1754,7 +1663,7 @@ void PostgreSQL::Pool::setHealthCheckInterval()
 
   try
   {
-    // Set primary database health_check_interval for production environment ------------------------------------
+    // Set primary database health_check_interval for production environment -----------------------
     const char* health_check_interval = std::getenv(CAOS_ENV_DBHEALTHCHECKINTERVAL_NAME);
 
     if (PostgreSQL::Pool::terminalPtr->has(CAOS_OPT_DBHEALTHCHECKINTERVAL_NAME))
@@ -1945,6 +1854,17 @@ std::size_t PostgreSQL::Pool::getTotalConnections() noexcept
 // -------------------------------------------------------------------------------------------------
 
 
+
+
+
+
+
+
+
+
+// +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+// Init of PostgreSQL::Pool::checkPoolSize()
+// +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 bool inline PostgreSQL::Pool::checkPoolSize(std::size_t& askingPoolSize)
 {
   static constexpr const char* fName = "PostgreSQL::Pool::checkPoolSize";
@@ -1965,6 +1885,15 @@ bool inline PostgreSQL::Pool::checkPoolSize(std::size_t& askingPoolSize)
 
   return true;
 }
+// -------------------------------------------------------------------------------------------------
+// End of PostgreSQL::Pool::checkPoolSize()
+// -------------------------------------------------------------------------------------------------
+// -------------------------------------------------------------------------------------------------
+
+
+
+
+
 
 
 
@@ -1979,15 +1908,14 @@ std::size_t PostgreSQL::Pool::init(std::size_t count)
 
   std::size_t i = 0;
   std::size_t pool_size = (count>0) ? count : PostgreSQL::Pool::getPoolSizeMin();
-  // std::atomic<std::size_t> offlineCounter{0};
 
-  spdlog::warn("[{}] New pool building", fName);
+  spdlog::info("[{}] New pool building", fName);
 
   while (i < pool_size                                                                              // Create connections until the requested size is reached
          && running_.load(std::memory_order_acquire)                                                // Stop if a signal is detect
          && !PostgreSQL::Pool::connectionRefused.load(std::memory_order_acquire))                   // Stop if a previous connection was refused
   {
-    bool connectionResult;
+    bool connectionResult = false;
 
     try
     {
@@ -1996,35 +1924,9 @@ std::size_t PostgreSQL::Pool::init(std::size_t count)
     catch (const repository::broken_connection& e)
     {
       throw;
-      // offlineCounter.fetch_add(1);
-
-      // if (offlineCounter.load(std::memory_order_acquire) > 5)
-      // {
-      //   spdlog::error("[{}] PostgreSQL is unreachable", fName);
-      //   PostgreSQL::Pool::offline_.store(true, std::memory_order_release);
-      //   break;
-      // }
-
-      // /*
-      //  * Don't flood the database with connection attempts when it's unreachable
-      //  * Just wait a little before retrying
-      //  */
-      // {
-      //   std::unique_lock<std::mutex> waitlock(PostgreSQL::Pool::shutdown_mutex_);
-      //   PostgreSQL::Pool::shutdown_cv_.wait_for(
-      //     waitlock,
-      //     PostgreSQL::Pool::getMaxWait(),
-      //     [] { return !PostgreSQL::Pool::running_.load(std::memory_order_acquire); }
-      //   );
-      // }
-
-      // throw;
     }
 
     i++;
-
-    // offlineCounter.store(0,std::memory_order_release);
-    // PostgreSQL::Pool::offline_.store(false, std::memory_order_release);
 
     spdlog::trace("[{}] New PostgreSQL connection established", fName);
   }
@@ -2033,75 +1935,6 @@ std::size_t PostgreSQL::Pool::init(std::size_t count)
 }
 // -------------------------------------------------------------------------------------------------
 // End of PostgreSQL::Pool::init()
-// -------------------------------------------------------------------------------------------------
-// -------------------------------------------------------------------------------------------------
-
-
-
-
-
-
-
-
-
-
-// +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-// Init of PostgreSQL::Pool::reinit()
-// +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-// void PostgreSQL::Pool::reinit()
-// {
-//   static constexpr const char* fName = "PostgreSQL::Pool::reinit";
-
-//   // Save current connection in a queue ----------------------------------------------------------
-//   std::queue<pqxxShPtr> validConnections;
-//   // ---------------------------------------------------------------------------------------------
-
-//   std::lock_guard<std::mutex> lock(PostgreSQL::Pool::available_mutex_);
-
-//   while (!PostgreSQL::Pool::available_.empty() && running_.load(std::memory_order_acquire))
-//   {
-//     spdlog::trace("[{}] Checking current connection", fName);
-
-//     auto connection = std::move(PostgreSQL::Pool::available_.front());
-//     if (PostgreSQL::Pool::validateConnection(connection))
-//     {
-//       spdlog::trace("[{}] Connection is valid", fName);
-
-//       validConnections.push(std::move(connection));
-//       PostgreSQL::Pool::available_.pop();
-
-//       continue;
-//     }
-
-//     auto recreatedConnection = this->init(true);                                                  // Existing connection is invalid, make a brand new one
-//     if (recreatedConnection.has_value())
-//     {
-//       validConnections.push(std::move(*recreatedConnection));
-//       PostgreSQL::Pool::available_.pop();
-//     }
-//     else
-//     {
-//       if (running_.load(std::memory_order_acquire))
-//       {
-//         std::this_thread::sleep_for(PostgreSQL::Pool::getMaxWait());
-//       }
-//     }
-//   }
-
-//   // All connections processed, make them available again
-//   if (PostgreSQL::Pool::available_.empty())
-//   {
-//     while (!validConnections.empty())
-//     {
-//       PostgreSQL::Pool::available_.push(std::move(validConnections.front()));
-//       validConnections.pop();
-//     }
-
-//     spdlog::trace("[{}] Connections is alive and working", fName);
-//   }
-// }
-// -------------------------------------------------------------------------------------------------
-// End of PostgreSQL::Pool::reinit()
 // -------------------------------------------------------------------------------------------------
 // -------------------------------------------------------------------------------------------------
 
@@ -2135,12 +1968,14 @@ bool PostgreSQL::Pool::validateConnection(const std::unique_ptr<pqxx::connection
       pqxx::result result;
 
       {
+        #if VALIDATE_USING_TRANSACTION == 0
         pqxx::nontransaction nontx(*connection);
         result = nontx.exec("SELECT 1");
-
-        // pqxx::work tx(*connection);
-        // result=tx.exec("SELECT 1");
-        // tx.commit();
+        #else
+        pqxx::work tx(*connection);
+        result=tx.exec("SELECT 1");
+        tx.commit();
+        #endif
       }
 
       if (!result.empty())
@@ -2161,8 +1996,6 @@ bool PostgreSQL::Pool::validateConnection(const std::unique_ptr<pqxx::connection
   {
     spdlog::error("[pool] validate: unknown exception");
   }
-
-  // PostgreSQL::Pool::closeConnection(connection);
 
   return false;
 }
@@ -2186,6 +2019,8 @@ bool PostgreSQL::Pool::validateConnection(const std::unique_ptr<pqxx::connection
 bool PostgreSQL::Pool::createConnection(std::size_t& pool_size)
 {
   static constexpr const char* fName = "PostgreSQL::Pool::createConnection";
+
+  static std::atomic<bool> loggedOnce {false};
 
   try
   {
@@ -2213,6 +2048,8 @@ bool PostgreSQL::Pool::createConnection(std::size_t& pool_size)
 
       PostgreSQL::Pool::connectionRefused = false;
 
+      loggedOnce.store(false, std::memory_order_release);
+
       return true;
     }
 
@@ -2224,11 +2061,19 @@ bool PostgreSQL::Pool::createConnection(std::size_t& pool_size)
   }
   catch (const std::exception& e)
   {
-    spdlog::critical("[{}] Exception during connection creation: {}", fName, e.what());
+    if (!loggedOnce.load(std::memory_order_acquire))
+    {
+      spdlog::error("[{}] Exception during connection creation: {}", fName, e.what());
+      loggedOnce.store(true, std::memory_order_release);
+    }
   }
   catch (...)
   {
-    spdlog::critical("[{}] Unknown exception during connection creation", fName);
+    if (!loggedOnce.load(std::memory_order_acquire))
+    {
+      spdlog::error("[{}] Unknown exception during connection creation", fName);
+      loggedOnce.store(true, std::memory_order_release);
+    }
   }
 
   return false;
@@ -2247,69 +2092,13 @@ bool PostgreSQL::Pool::createConnection(std::size_t& pool_size)
 
 
 
+
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 // Init of PostgreSQL::Pool::healthCheckLoop()
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-// void PostgreSQL::Pool::healthCheckLoop()
-// {
-//   static constexpr const char* fName = "PostgreSQL::Pool::healthCheckLoop";
-//   static std::atomic<bool> start;
-
-//   while (running_.load(std::memory_order_acquire))
-//   {
-
-
-//     spdlog::trace("Running {}",fName);
-
-//     /*
-//      * Scenario 1: If the repository launches while the database is down/unreachable, available_
-//      * remains empty, requiring the creation of brand-new connections.
-//      */
-//     if(PostgreSQL::Pool::available_.empty())
-//     {
-//       if (start)
-//       {
-//         this->init();
-//       }
-//       else
-//       {
-//         start=true;
-
-//         // auto average_duration = PostgreSQL::Pool::calculateAverageDuration();
-//         // if (average_duration>this->getPoolTimeout())
-//         // {
-
-//         this->init();
-
-
-//       }
-//     }
-
-//     /*
-//      * Scenario 2: The repository is already running with established working connections, and must
-//      * perform an health check—either validating the existing connections or replacing them if they
-//      * fail.
-//      */
-//     else
-//     {
-//       this->reinit();
-//     }
-
-//     this->condition_.notify_all();
-
-//     PostgreSQL::Pool::cleanupIdleConnections();
-
-//     if (running_.load(std::memory_order_acquire))
-//     {
-//       std::this_thread::sleep_for(PostgreSQL::Pool::getHealthCheckInterval());
-//     }
-//   }
-// }
-
 void PostgreSQL::Pool::healthCheckLoop()
 {
   static constexpr const char* fName = "PostgreSQL::Pool::healthCheckLoop";
-  static std::atomic<bool> first_start{true};
 
   while (PostgreSQL::Pool::running_.load(std::memory_order_acquire))
   {
@@ -2329,7 +2118,7 @@ void PostgreSQL::Pool::healthCheckLoop()
 
             if (!metrics.is_acquired)
             {
-              metrics.is_acquired = true;
+              metrics.is_acquired = true;                                                           // Don't let threads acquire this connection while validating
 
               if (PostgreSQL::Pool::validateConnection(connection))
               {
@@ -2346,7 +2135,7 @@ void PostgreSQL::Pool::healthCheckLoop()
           }
         }
 
-        PostgreSQL::Pool::cleanupMarkedConnections();
+        PostgreSQL::Pool::cleanupMarkedConnections();                                               // Remove invalid connections
 
         std::size_t totalConnections = PostgreSQL::Pool::connections.size();
 
@@ -2354,7 +2143,7 @@ void PostgreSQL::Pool::healthCheckLoop()
 
         if (connectionDiff < 0)
         {
-          PostgreSQL::Pool::init(static_cast<std::size_t>(-connectionDiff));
+          PostgreSQL::Pool::init(static_cast<std::size_t>(-connectionDiff));                        // Refill pool
         }
       }
       catch (const repository::broken_connection& e)
@@ -2439,6 +2228,16 @@ std::chrono::milliseconds PostgreSQL::Pool::calculateAverageDuration()
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 // Init of PostgreSQL::Pool::acquireConnection()
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+#define INIT_CONNECTION()                         \
+  try                                             \
+  {                                               \
+    PostgreSQL::Pool::init(1);                    \
+  }                                               \
+  catch (const repository::broken_connection& e)  \
+  {                                               \
+    throw;                                        \
+  }
+
 std::optional<const std::unique_ptr<pqxx::connection>*> PostgreSQL::Pool::acquireConnection()
 {
   static constexpr const char* fName = "PostgreSQL::Pool::acquireConnection";
@@ -2454,17 +2253,9 @@ std::optional<const std::unique_ptr<pqxx::connection>*> PostgreSQL::Pool::acquir
     if (PostgreSQL::Pool::connections.empty())
     {
       // Pool is empty! Do not await healthCheckLoop(). Create emergency connection
-      try
-      {
-        PostgreSQL::Pool::init(1);
-      }
-      catch (const repository::broken_connection& e)
-      {
-        throw;
-      }
+      INIT_CONNECTION()
     }
-
-    if (!PostgreSQL::Pool::connections.empty())
+    else
     {
       for (auto it = PostgreSQL::Pool::connections.begin(); it != PostgreSQL::Pool::connections.end(); ++it)
       {
@@ -2490,9 +2281,9 @@ std::optional<const std::unique_ptr<pqxx::connection>*> PostgreSQL::Pool::acquir
 
               return &connection                                                              ;
             }
-            #if VALIDATE_CONNECTION_BEFORE_ACQUIRE==0
+
             throw pqxx::broken_connection("Connection lost");
-            #endif
+
           }
           catch (const repository::broken_connection& e)
           {
@@ -2504,6 +2295,9 @@ std::optional<const std::unique_ptr<pqxx::connection>*> PostgreSQL::Pool::acquir
           }
         }
       }
+
+      // Pool count is not enough! Try to create an emergency connection
+      INIT_CONNECTION()
     }
   }
 
@@ -2543,6 +2337,8 @@ std::optional<const std::unique_ptr<pqxx::connection>*> PostgreSQL::Pool::acquir
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 // Init of PostgreSQL::Pool::closeConnection()
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+// Internal use
 void PostgreSQL::Pool::closeConnection(const std::unique_ptr<pqxx::connection>& connection)
 {
   static constexpr const char* fName = "PostgreSQL::Pool::closeConnection(1)";
@@ -2586,6 +2382,8 @@ void PostgreSQL::Pool::closeConnection(const std::unique_ptr<pqxx::connection>& 
   }
 }
 
+
+// Crow's endpoint use
 void PostgreSQL::Pool::closeConnection(std::optional<PostgreSQL::ConnectionWrapper>& connection)
 {
   static constexpr const char* fName = "PostgreSQL::Pool::closeConnection(2)";
@@ -2767,27 +2565,12 @@ void PostgreSQL::Pool::cleanupMarkedConnections()
 // -------------------------------------------------------------------------------------------------
 
 
-// +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-// Init of PostgreSQL::Pool::startCleanupTask()
-// +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-// void PostgreSQL::Pool::startCleanupTask()
-// {
-//   std::cout << "Start CleanUp task\n";
 
-//   static std::atomic<bool> cleanup_running{false};
 
-//   if (!cleanup_running.exchange(true))
-//   {std::cout << "----------------------------------------------------------------------------------------------------------------\n";
-//     std::thread([this] {
-//       this->cleanupIdleConnections();
-//       cleanup_running.store(false);
-//     }).detach();
-//   }
-// }
-// -------------------------------------------------------------------------------------------------
-// End of PostgreSQL::Pool::startCleanupTask()
-// -------------------------------------------------------------------------------------------------
-// -------------------------------------------------------------------------------------------------
+
+
+
+
 
 
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -2835,15 +2618,12 @@ void PostgreSQL::Pool::releaseConnection(std::optional<const std::unique_ptr<pqx
 {
   if (connection_opt.has_value())
   {
-    // Estrai il pointer allo unique_ptr dall'optional
     const std::unique_ptr<pqxx::connection>* unique_ptr_ptr = connection_opt.value();
 
     std::unique_lock lock(PostgreSQL::Pool::connections_mutex, std::try_to_lock);
 
-    // Cerca la unique_ptr corrispondente nella mappa
     for (auto it = PostgreSQL::Pool::connections.begin(); it != PostgreSQL::Pool::connections.end(); ++it)
     {
-      // Confronta gli indirizzi degli unique_ptr
       if (&it->first == unique_ptr_ptr)
       {
         auto& metrics = it->second;
@@ -2852,13 +2632,13 @@ void PostgreSQL::Pool::releaseConnection(std::optional<const std::unique_ptr<pqx
         metrics.last_duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - metrics.start_time);
         metrics.total_duration += metrics.last_duration;
         metrics.is_acquired = false;
-// std::cout << (metrics.is_acquired?"RELEASE-TRUE":"RELEASE-FALSE") << "\n";
+
         PostgreSQL::Pool::condition.notify_one();
+
         return;
       }
     }
 
-    // Se arriviamo qui, la connessione non è stata trovata
     spdlog::warn("Connection not found in pool during release");
   }
 }
@@ -2932,7 +2712,6 @@ std::chrono::milliseconds PostgreSQL::Pool::getLastDuration(const std::unique_pt
 
 
 
-// Contatore utilizzi per connessione
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 // Init of PostgreSQL::Pool::getUsageCount()
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -3049,10 +2828,12 @@ PostgreSQL::PostgreSQL()
 
 
 
+
+
 PostgreSQL::~PostgreSQL()
 {
   running_.store(false, std::memory_order_release);
-  // spdlog::trace("PostgreSQL pool cleanup complete");
+
   this->pool.reset();
 }
 /***************************************************************************************************
@@ -3074,41 +2855,3 @@ PostgreSQL::~PostgreSQL()
 
 std::optional<PostgreSQL::ConnectionWrapper>  PostgreSQL::acquire()                         { return this->pool->acquire(); }
 void                                          PostgreSQL::releaseConnection(std::optional<const std::unique_ptr<pqxx::connection>*> connection) {  this->pool->releaseConnection(connection); }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

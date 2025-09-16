@@ -24,7 +24,15 @@ class Cache : public IRepository
       else
       {
         // Interroga il db
-        return database->echoString (str);
+        auto ret = database->echoString (str);
+
+        if (ret.has_value())
+        {
+          // Store value into the cache
+          std::cout << ret.value()<< "--\n";
+        }
+
+        return ret;
       }
     };
 

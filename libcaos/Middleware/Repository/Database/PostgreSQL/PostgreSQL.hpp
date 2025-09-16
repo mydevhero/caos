@@ -11,8 +11,6 @@
 #include <environment.hpp>
 #include <functional>
 #include <shared_mutex>
-
-// Nel header file (es. PostgreSQL.hpp)
 #include <pqxx/except>
 #include <functional>
 
@@ -30,8 +28,8 @@
     }                                                           \
   }())
 
-#define CAOS_POSTGRESQL_CLOSE_CONNECTION()                      \
-  PostgreSQL::Pool::closeConnection(*(connection_opt.value().getRaw()));
+// #define CAOS_POSTGRESQL_CLOSE_CONNECTION()                      \
+//   PostgreSQL::Pool::closeConnection(*(connection_opt.value().getRaw()));
 
 
 class PostgreSQL final: public IRepository
@@ -48,7 +46,6 @@ class PostgreSQL final: public IRepository
         static std::mutex                               shutdown_mutex_                   ;
         static std::condition_variable                  condition                         ;
         static std::atomic<bool>                        running_                          ;
-        // static std::atomic<bool>                        offline_                          ;
         static std::thread                              healthCheckThread_                ;
 
         struct ConnectionMetrics
@@ -91,8 +88,7 @@ class PostgreSQL final: public IRepository
         static std::vector<decltype(connections)::iterator>  connectionsToRemove;
 
         static std::mutex                               connections_mutex                 ;
-        static std::atomic<bool>                        connectionRefused                ;
-        // static std::shared_mutex                        connections_mutex                 ;
+        static std::atomic<bool>                        connectionRefused                 ;
 
         struct config_s
         {
@@ -157,11 +153,10 @@ class PostgreSQL final: public IRepository
 
         static inline std::size_t                       init(std::size_t = 0)             ;
 
-        // [[nodiscard]] static bool                       validateConnection(const std::unique_ptr<pqxx::connection>&)     ;
         [[nodiscard]] static bool                       validateConnection(const std::unique_ptr<pqxx::connection>& connection);
-        [[nodiscard]] static bool                       createConnection(std::size_t&)           ;
+        [[nodiscard]] static bool                       createConnection(std::size_t&)    ;
         static void                                     healthCheckLoop()                 ;
-        static std::optional<const std::unique_ptr<pqxx::connection>*>                            acquireConnection()               ;
+        static std::optional<const std::unique_ptr<pqxx::connection>*> acquireConnection();
         void                                            handleInvalidConnection(const std::unique_ptr<pqxx::connection>&);
         static void                                     cleanupMarkedConnections();
         // static inline void                              cleanupIdleConnections()          ;
@@ -174,38 +169,6 @@ class PostgreSQL final: public IRepository
         static void                                     printConnectionStats()            ;
         static bool inline                              checkPoolSize(std::size_t&)       ;
 
-        enum class ConnectionErrorType {
-            connectionRefused,
-            TIMEOUT,
-            AUTHENTICATION_FAILED,
-            NETWORK_ERROR,
-            UNKNOWN_ERROR
-        };
-
-        static ConnectionErrorType analyzeConnectionError(const std::string& msg)
-        {
-          if (msg.find("Connection refused") != std::string::npos ||
-              msg.find("econnrefused") != std::string::npos)
-          {
-            return ConnectionErrorType::connectionRefused;
-          }
-          // else if (msg.find("timeout") != std::string::npos)
-          // {
-          //   return ConnectionErrorType::TIMEOUT;
-          // }
-          // else if (msg.find("authentication") != std::string::npos ||
-          //          msg.find("password") != std::string::npos)
-          // {
-          //   return ConnectionErrorType::AUTHENTICATION_FAILED;
-          // }
-          // else if (msg.find("network") != std::string::npos ||
-          //          msg.find("host") != std::string::npos)
-          // {
-          //   return ConnectionErrorType::NETWORK_ERROR;
-          // }
-
-          return ConnectionErrorType::UNKNOWN_ERROR;
-        }
       public:
         static void                                     closeConnection(const std::unique_ptr<pqxx::connection>&)       ;
         static void                                     closeConnection(std::optional<PostgreSQL::ConnectionWrapper>& connection);
@@ -221,32 +184,28 @@ class PostgreSQL final: public IRepository
         Pool();
         ~Pool();
 
-        [[nodiscard]] static Metrics            getMetrics()                      noexcept;
-        [[nodiscard]] static std::size_t        getAvailableConnections()         noexcept;
-        [[nodiscard]] static std::size_t        getTotalConnections()             noexcept;
+        [[nodiscard]] static Metrics                    getMetrics()              noexcept;
+        [[nodiscard]] static std::size_t                getAvailableConnections() noexcept;
+        [[nodiscard]] static std::size_t                getTotalConnections()     noexcept;
 
-        static std::optional<PostgreSQL::ConnectionWrapper> acquire();
-        static void                                    releaseConnection(std::optional<const std::unique_ptr<pqxx::connection>*>);
+        static std::optional<PostgreSQL::ConnectionWrapper> acquire()                     ;
+        static void                                     releaseConnection(std::optional<const std::unique_ptr<pqxx::connection>*>);
     };
 
-    std::unique_ptr<Pool>                       pool                                      ;
-    std::atomic<bool>                           running_{true}                            ;
+    std::unique_ptr<Pool>                               pool                              ;
+    std::atomic<bool>                                   running_{true}                    ;
 
   public:
-    // class broken_connection : public std::runtime_error {
-    //   public:
-    //     explicit broken_connection(const std::string& msg)
-    //       : std::runtime_error(msg) {}
-    // };
 
     PostgreSQL();
 
     ~PostgreSQL() override;
 
-    std::optional<PostgreSQL::ConnectionWrapper> acquire();
-    void                                        releaseConnection(std::optional<const std::unique_ptr<pqxx::connection>*>);
+    std::optional<PostgreSQL::ConnectionWrapper>        acquire()                         ;
+    void                                                releaseConnection(std::optional<const std::unique_ptr<pqxx::connection>*>);
 
-    std::optional<std::string> echoString(std::string str) override {
+    std::optional<std::string> echoString(std::string str) override
+    {
       static constexpr const char* fName = "PostgreSQL::echoString";
 
       if(!running_.load(std::memory_order_relaxed))
@@ -280,7 +239,7 @@ class PostgreSQL final: public IRepository
           return std::nullopt;
         }
 
-        // throw pqxx::broken_connection("Database connection unavailable - cannot acquire connection from pool");
+        throw repository::broken_connection("Database connection unavailable - cannot acquire connection from pool");
 
       }
       catch (const repository::broken_connection& e)
@@ -292,15 +251,18 @@ class PostgreSQL final: public IRepository
       }
       catch (const pqxx::sql_error& e)
       {
-        spdlog::error("[{}] SQL error during connection creation: {}", fName, e.what());
+        // spdlog::error("[{}] SQL error during connection creation: {}", fName, e.what());
+        throw;
       }
       catch (const std::exception& e)
       {
-        spdlog::critical("[{}] Exception during connection creation: {}", fName, e.what());
+        // spdlog::critical("[{}] Exception during connection creation: {}", fName, e.what());
+        throw;
       }
       catch(...)
       {
-        spdlog::error("Can't execute echoString() query");
+        // spdlog::error("Can't execute echoString() query");
+        throw;
       }
 
       return std::nullopt;
@@ -355,7 +317,7 @@ class PostgreSQL final: public IRepository
 
         [[nodiscard]] const std::unique_ptr<pqxx::connection>* getRaw() const
         {
-            return connection_ptr.has_value() ? connection_ptr.value() : nullptr;
+          return connection_ptr.has_value() ? connection_ptr.value() : nullptr;
         }
 
         void release()
@@ -370,7 +332,7 @@ class PostgreSQL final: public IRepository
 
         explicit operator bool() const
         {
-          return connection_ptr.has_value() && !released && connection_ptr.value()->get() != nullptr;
+          return connection_ptr.has_value() && !released && connection_ptr.value() != nullptr;
         }
 
       private:

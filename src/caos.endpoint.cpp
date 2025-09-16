@@ -59,37 +59,46 @@ int main(int argc, char* argv[])
         res.set_header("Content-Type", "text/html");
         res.body = ret.value();
         res.code = 200;
-        res.end();
+        // res.end();
       }
       else
-      {///il db è spento ma non viene lanciato il catch, wtf!
+      {
         spdlog::trace("EEE");
         // return  ret.value(); // std::string
         res.set_header("Content-Type", "text/html");
         res.body = "OUUUU";
         res.code = 200;
-        res.end();
+        // res.end();
       }
     }
     catch (const repository::broken_connection& e)
     {
-      std::cout << "A1\n" << e.what() << "\n";
+      // std::cout << "Repository unavailable\n" << e.what() << "\n";
       res.set_header("Content-Type", "text/plain");
       res.body = "Repository unavailable";
       res.code = 503;
-      res.end();
+      // res.end();
     }
     catch (const pqxx::sql_error& e)
     {
-      std::cout << "A2\n";
+      // std::cout << "Repository error\n";
+      res.set_header("Content-Type", "text/plain");
+      res.body = "Repository error";
+      res.code = 503;
     }
     catch (const std::exception& e)
     {
-      std::cout << "A3\n";
+      // std::cout << "Something went wrong\n";
+      res.set_header("Content-Type", "text/plain");
+      res.body = "Something went wrong";
+      res.code = 503;
     }
     catch(...)
     {
-      spdlog::error("Can't execute echoString() query");
+      // spdlog::error("Unknown exception");
+      res.set_header("Content-Type", "text/plain");
+      res.body = "Unknown exception";
+      res.code = 503;
     }
 
     res.end();

@@ -61,19 +61,19 @@ void worker_thread(int thread_id) {
     }
     catch (const repository::broken_connection& e)
     {
-      spdlog::info("Repository unavailable");
+      // spdlog::info("Repository unavailable");
     }
     catch (const pqxx::sql_error& e)
     {
-      spdlog::error("SQL error during connection creation: {}", e.what());
+      // spdlog::error("SQL error during connection creation: {}", e.what());
     }
     catch (const std::exception& e)
     {
-      spdlog::critical("Exception during connection creation: {}", e.what());
+      // spdlog::critical("Exception during connection creation: {}", e.what());
     }
     catch(...)
     {
-      spdlog::error("Can't execute echoString() query");
+      // spdlog::error("Can't execute echoString() query");
     }
 
     // if (current_i>500000)
