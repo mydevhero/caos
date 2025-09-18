@@ -80,14 +80,23 @@ class PostgreSQL final: public IRepository
             }
         };
 
-        static std::unordered_map<std::unique_ptr<pqxx::connection>,
-                                  ConnectionMetrics,
-                                  UniquePtrHash,
-                                  UniquePtrEqual>       connections                       ;
+        struct PoolData {
+          std::unordered_map<std::unique_ptr<pqxx::connection>,
+                             ConnectionMetrics,
+                             UniquePtrHash,
+                             UniquePtrEqual>            connections;
 
-        static std::vector<decltype(connections)::iterator>  connectionsToRemove;
+          std::vector<decltype(connections)::iterator>  connectionsToRemove;
 
-        static std::mutex                               connections_mutex                 ;
+          std::mutex                                    connections_mutex;
+
+          PoolData(size_t capacity)
+          {
+            connections.reserve(capacity);
+            connectionsToRemove.reserve(capacity);
+          }
+        };
+
         static std::atomic<bool>                        connectionRefused                 ;
 
         struct config_s
@@ -187,6 +196,7 @@ class PostgreSQL final: public IRepository
         [[nodiscard]] static Metrics                    getMetrics()              noexcept;
         [[nodiscard]] static std::size_t                getAvailableConnections() noexcept;
         [[nodiscard]] static std::size_t                getTotalConnections()     noexcept;
+        [[nodiscard]] static PoolData&                  getPoolData()             noexcept;
 
         static std::optional<PostgreSQL::ConnectionWrapper> acquire()                     ;
         static void                                     releaseConnection(std::optional<const std::unique_ptr<pqxx::connection>*>);

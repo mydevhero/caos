@@ -29,7 +29,6 @@ class Cache : public IRepository
         if (ret.has_value())
         {
           // Store value into the cache
-          std::cout << ret.value()<< "--\n";
         }
 
         return ret;
