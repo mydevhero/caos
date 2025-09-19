@@ -1,6 +1,7 @@
 #pragma once
 #include <optional>
 #include <atomic>
+#include "libcaos/config.hpp"
 
 #include "Exception.hpp"
 

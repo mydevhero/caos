@@ -2,8 +2,19 @@
 
 #include "../IRepository.hpp"
 
+#ifdef CAOS_USE_DB_POSTGRESQL
 #include <pqxx/pqxx>
 #include <pqxx/except>
+#endif
+
+#ifdef CAOS_USE_DB_MYSQL
+#include <mysql_driver.h>
+#include <mysql_connection.h>
+#include <cppconn/statement.h>
+#include <cppconn/resultset.h>
+#include <cppconn/prepared_statement.h>
+#include <cppconn/exception.h>
+#endif
 
 #include <spdlog/spdlog.h>
 #include <terminal_options.hpp>
@@ -14,7 +25,27 @@
 #include <optional>
 #include <memory>
 
-enum class DatabaseType: std::uint8_t {PostgreSQL=0, EOE};                                          // End Of Enum
+enum class DatabaseType: std::uint8_t {
+  PostgreSQL  = 0,
+  MySQL       = 1,
+  EOE                                                                                               // End Of Enum
+};
+
+#ifdef CAOS_USE_DB_POSTGRESQL
+using dbconn            = pqxx::connection;
+using dbuniq            = std::unique_ptr<pqxx::connection>;
+using dboptuniqptr      = std::optional<const std::unique_ptr<pqxx::connection>*>;
+using broken_connection = pqxx::broken_connection;
+using sql_exception     = pqxx::sql_error;
+#endif
+
+#ifdef CAOS_USE_DB_MYSQL
+using dbconn            = sql::Connection;
+using dbuniq            = std::unique_ptr<sql::Connection>;
+using dboptuniqptr      = std::optional<const std::unique_ptr<sql::Connection>*>;
+using broken_connection = sql::SQLException;
+using sql_exception     = sql::SQLException;
+#endif
 
 class Database : public IRepository
 {
@@ -22,8 +53,8 @@ class Database : public IRepository
     class ConnectionWrapper
     {
       public:
-        ConnectionWrapper(std::optional<const std::unique_ptr<pqxx::connection>*> conn_ptr,
-                          std::function<void(std::optional<const std::unique_ptr<pqxx::connection>*>)> release_func)
+        ConnectionWrapper(dboptuniqptr conn_ptr,
+                          std::function<void(dboptuniqptr)> release_func)
           : connection_ptr(conn_ptr),
             release_func(std::move(release_func))
         {}
@@ -50,22 +81,34 @@ class Database : public IRepository
         ConnectionWrapper(const ConnectionWrapper&) = delete;
         ConnectionWrapper& operator=(const ConnectionWrapper&) = delete;
 
-        pqxx::connection& operator*() const
+        dbconn& operator*() const
         {
-          return *(connection_ptr.value()->get());
+          try
+          {
+            if (connection_ptr.has_value())
+            {
+              return *(connection_ptr.value()->get());
+            }
+
+            throw repository::broken_connection("Connection wrapper is null");
+          }
+          catch (repository::broken_connection)
+          {
+            throw;
+          }
         }
 
-        pqxx::connection* operator->() const
+        dbconn* operator->() const
         {
           return connection_ptr.has_value() ? connection_ptr.value()->get() : nullptr;
         }
 
-        [[nodiscard]] pqxx::connection* get() const
+        [[nodiscard]] dbconn* get() const
         {
           return connection_ptr.has_value() ? connection_ptr.value()->get() : nullptr;
         }
 
-        [[nodiscard]] const std::unique_ptr<pqxx::connection>* getRaw() const
+        [[nodiscard]] const dbuniq* getRaw() const
         {
           return connection_ptr.has_value() ? connection_ptr.value() : nullptr;
         }
@@ -86,32 +129,112 @@ class Database : public IRepository
         }
 
       private:
-        std::optional<const std::unique_ptr<pqxx::connection>*> connection_ptr;
-        std::function<void(std::optional<const std::unique_ptr<pqxx::connection>*>)> release_func;
-        bool released{false};
-        std::function<void()> cleanup_handler_;
+        dboptuniqptr                                  connection_ptr                            ;
+        std::function<void(dboptuniqptr)>             release_func                              ;
+        bool                                          released{false}                           ;
+        std::function<void()>                         cleanup_handler_                          ;
     };
 
     class Pool
     {
       private:
-        TerminalOptions*                  terminalPtr           = nullptr   ;
-        Environment*                      environmentRef        = nullptr   ;
-        std::condition_variable                  shutdown_cv_                      ;
-        std::mutex                               shutdown_mutex_                   ;
-        std::condition_variable                  condition                         ;
-        std::atomic<bool>                        running_                          ;
-        std::thread                              healthCheckThread_                ;
-      protected:
+        TerminalOptions*                              terminalPtr           = nullptr           ;
+        Environment*                                  environmentRef        = nullptr           ;
+        std::condition_variable                       shutdown_cv_                              ;
+        std::mutex                                    shutdown_mutex_                           ;
+        std::condition_variable                       condition                                 ;
+        std::atomic<bool>                             running_                                  ;
+        std::thread                                   healthCheckThread_                        ;
+
+        struct config_s
+        {
+          std::string                                 user                                      ;
+          std::string                                 pass                                      ;
+          std::string                                 host                                      ;
+          std::uint16_t                               port                  {0}                 ;
+          std::string                                 name                                      ;
+          std::size_t                                 poolsizemin           {0}                 ;
+          std::size_t                                 poolsizemax           {0}                 ;
+          std::uint32_t                               poolwait              {0}                 ;
+          std::chrono::milliseconds                   pooltimeout           {0}                 ;
+          std::size_t                                 keepalives            {0}                 ;
+          std::size_t                                 keepalives_idle       {0}                 ;
+          std::size_t                                 keepalives_interval   {0}                 ;
+          std::size_t                                 keepalives_count      {0}                 ;
+          std::size_t                                 connect_timeout       {0}                 ;
+          std::string                                 connection_string                         ;
+          std::chrono::milliseconds                   max_wait              {0}                 ;
+          std::chrono::milliseconds                   health_check_interval {0}                 ;
+        };
+        config_s config;
+
+        // Setters ---------------------------------------------------------------------------------
+        void                                          setUser()                                 ;
+        void                                          setPass()                                 ;
+        void                                          setHost()                                 ;
+        void                                          setPort()                                 ;
+        void                                          setName()                                 ;
+        void                                          setPoolSizeMin()                          ;
+        void                                          setPoolSizeMax()                          ;
+        void                                          setPoolWait()                             ;
+        void                                          setPoolTimeout()                          ;
+        void                                          setKeepAlives()                           ;
+        void                                          setKeepAlivesIdle()                       ;
+        void                                          setKeepAlivesInterval()                   ;
+        void                                          setKeepAlivesCount()                      ;
+        void                                          setConnectTimeout()                       ;
+        void                                          setMaxWait()                              ;
+        void                                          setHealthCheckInterval()                  ;
+        void                                          setConnectStr()                   noexcept;
+
+        std::size_t                                   init(std::size_t = 0)                     ;
+        void                                          healthCheckLoop()                         ;
+        dboptuniqptr                                  acquireConnection()                       ;
+        void                                          handleInvalidConnection(const dbuniq&);
+        void                                          cleanupMarkedConnections()                ;
+
+        // Getters ---------------------------------------------------------------------------------
+        [[nodiscard]] const std::string               getUser()                   const noexcept;
+        [[nodiscard]] const std::string               getPass()                   const noexcept;
+        [[nodiscard]] const std::string               getHost()                   const noexcept;
+        [[nodiscard]] const std::uint16_t             getPort()                   const noexcept;
+        [[nodiscard]] const std::string               getName()                   const noexcept;
+        [[nodiscard]] const std::size_t               getPoolSizeMin()            const noexcept;
+        [[nodiscard]] const std::size_t               getPoolSizeMax()            const noexcept;
+        [[nodiscard]] const std::uint32_t             getPoolWait()               const noexcept;
+        [[nodiscard]] const std::chrono::milliseconds getPoolTimeout()            const noexcept;
+        [[nodiscard]] const std::size_t               getKeepAlives()             const noexcept;
+        [[nodiscard]] const std::size_t               getKeepAlivesIdle()         const noexcept;
+        [[nodiscard]] const std::size_t               getKeepAlivesInterval()     const noexcept;
+        [[nodiscard]] const std::size_t               getKeepAlivesCount()        const noexcept;
+        [[nodiscard]] const std::size_t               getConnectTimeout()         const noexcept;
+        [[nodiscard]] const std::string&              getConnectStr()             const noexcept;
+        [[nodiscard]] const std::chrono::milliseconds getMaxWait()                const noexcept;
+        [[nodiscard]] const std::chrono::milliseconds getHealthCheckInterval()    const noexcept;
+        [[nodiscard]] const bool                      isDevOrTestEnv()            const noexcept;
+        [[nodiscard]] const bool                      checkPoolSize(std::size_t&) noexcept;
+
+        [[nodiscard]] bool                            validateConnection(const dbuniq&)         ;
+        [[nodiscard]] bool                            createConnection(std::size_t&)            ;
+
+        std::chrono::milliseconds                     getTotalDuration(const dbuniq&)           ;
+        std::chrono::milliseconds                     getLastDuration(const dbuniq&)            ;
+        std::chrono::milliseconds                     calculateAverageDuration()                ;
+        int                                           getUsageCount(const dbuniq&)              ;
+        void                                          printConnectionStats()                    ;
+
+
+
+        // Connections map -------------------------------------------------------------------------
         struct ConnectionMetrics
         {
-          std::chrono::steady_clock::time_point         start_time                        ;
-          std::chrono::steady_clock::time_point         end_time                          ;
-          std::chrono::milliseconds                     total_duration        {0}         ;
-          std::chrono::milliseconds                     last_duration         {0}         ;
-          std::chrono::steady_clock::time_point         last_acquired                     ;
-          int                                           usage_count           {0}         ;
-          bool                                          is_acquired           {false}     ;
+          std::chrono::steady_clock::time_point       start_time                                ;
+          std::chrono::steady_clock::time_point       end_time                                  ;
+          std::chrono::milliseconds                   total_duration        {0}                 ;
+          std::chrono::milliseconds                   last_duration         {0}                 ;
+          std::chrono::steady_clock::time_point       last_acquired                             ;
+          int                                         usage_count           {0}                 ;
+          bool                                        is_acquired           {false}             ;
 
           ConnectionMetrics() = default;
           ConnectionMetrics(ConnectionMetrics&&) noexcept = default;
@@ -120,30 +243,31 @@ class Database : public IRepository
 
         struct UniquePtrHash
         {
-          std::size_t operator()(const std::unique_ptr<pqxx::connection>& ptr) const
+          std::size_t operator()(const dbuniq& ptr) const
           {
-            return std::hash<pqxx::connection*>()(ptr.get());
+            return std::hash<dbconn*>()(ptr.get());
           }
         };
 
         // Equality comparator for unique_ptr<pqxx::connection>
-        struct UniquePtrEqual {
-            bool operator()(const std::unique_ptr<pqxx::connection>& a,
-                            const std::unique_ptr<pqxx::connection>& b) const
-            {
-              return a.get() == b.get();
-            }
+        struct UniquePtrEqual
+        {
+          bool operator()(const dbuniq& a,
+                          const dbuniq& b) const
+          {
+            return a.get() == b.get();
+          }
         };
 
         struct PoolData {
-          std::unordered_map<std::unique_ptr<pqxx::connection>,
+          std::unordered_map<dbuniq,
                              ConnectionMetrics,
                              UniquePtrHash,
-                             UniquePtrEqual>            connections;
+                             UniquePtrEqual>          connections;
 
-          std::vector<decltype(connections)::iterator>  connectionsToRemove;
+          std::vector<decltype(connections)::iterator>connectionsToRemove;
 
-          std::mutex                                    connections_mutex;
+          std::mutex                                  connections_mutex;
 
           PoolData(size_t capacity)
           {
@@ -152,130 +276,51 @@ class Database : public IRepository
           }
         };
 
-        std::atomic<bool>                        connectionRefused                 ;
-      protected:
-        struct config_s
-        {
-          std::string                                   user                              ;
-          std::string                                   pass                              ;
-          std::string                                   host                              ;
-          std::uint16_t                                 port                  {0}         ;
-          std::string                                   name                              ;
-          std::size_t                                   poolsizemin           {0}         ;
-          std::size_t                                   poolsizemax           {0}         ;
-          std::uint32_t                                 poolwait              {0}         ;
-          std::chrono::milliseconds                     pooltimeout           {0}         ;
-          std::size_t                                   keepalives            {0}         ;
-          std::size_t                                   keepalives_idle       {0}         ;
-          std::size_t                                   keepalives_interval   {0}         ;
-          std::size_t                                   keepalives_count      {0}         ;
-          std::size_t                                   connect_timeout       {0}         ;
-          std::string                                   connection_string                 ;
-          std::chrono::milliseconds                     max_wait              {0}         ;
-          std::chrono::milliseconds                     health_check_interval {0}         ;
-        };
-        config_s config;
-      private:
-        // Setters ---------------------------------------------------------------------------------
-        void                                     setUser()                         ;
-        void                                     setPass()                         ;
-        void                                     setHost()                         ;
-        void                                     setPort()                         ;
-        void                                     setName()                         ;
-        void                                     setPoolSizeMin()                  ;
-        void                                     setPoolSizeMax()                  ;
-        void                                     setPoolWait()                     ;
-        void                                     setPoolTimeout()                  ;
-        void                                     setKeepAlives()                   ;
-        void                                     setKeepAlivesIdle()               ;
-        void                                     setKeepAlivesInterval()           ;
-        void                                     setKeepAlivesCount()              ;
-        void                                     setConnectTimeout()               ;
-        void                                     setMaxWait()                      ;
-        void                                     setHealthCheckInterval()          ;
-        virtual void                                    setConnectStr()           noexcept;
-
-      protected:
-        // Getters ---------------------------------------------------------------------------------
-        [[nodiscard]] std::string                getUser()                 noexcept;
-        [[nodiscard]] std::string                getPass()                 noexcept;
-        [[nodiscard]] std::string                getHost()                 noexcept;
-        [[nodiscard]] std::uint16_t              getPort()                 noexcept;
-        [[nodiscard]] std::string                getName()                 noexcept;
-        [[nodiscard]] std::size_t                getPoolSizeMin()          noexcept;
-        [[nodiscard]] std::size_t                getPoolSizeMax()          noexcept;
-        [[nodiscard]] std::uint32_t              getPoolWait()             noexcept;
-        [[nodiscard]] std::chrono::milliseconds  getPoolTimeout()          noexcept;
-        [[nodiscard]] std::size_t                getKeepAlives()           noexcept;
-        [[nodiscard]] std::size_t                getKeepAlivesIdle()       noexcept;
-        [[nodiscard]] std::size_t                getKeepAlivesInterval()   noexcept;
-        [[nodiscard]] std::size_t                getKeepAlivesCount()      noexcept;
-        [[nodiscard]] std::size_t                getConnectTimeout()       noexcept;
-        [[nodiscard]] std::string&               getConnectStr()           noexcept;
-        [[nodiscard]] std::chrono::milliseconds  getMaxWait()              noexcept;
-        [[nodiscard]] std::chrono::milliseconds  getHealthCheckInterval()  noexcept;
-        [[nodiscard]] bool                       isDevOrTestEnv()          noexcept;
-        [[nodiscard]] bool                checkPoolSize(std::size_t&) noexcept;
+        std::atomic<bool>                             connectionRefused                         ;
 
 
-      private:
-        inline std::size_t                       init(std::size_t = 0)             ;
-      protected:
-        [[nodiscard]] virtual bool                       validateConnection(const std::unique_ptr<pqxx::connection>& connection);
-        [[nodiscard]] virtual bool                      createConnection(std::size_t&)    ;
-      private:
 
-        void                                     healthCheckLoop()                 ;
-        std::optional<const std::unique_ptr<pqxx::connection>*> acquireConnection();
-        void                                            handleInvalidConnection(const std::unique_ptr<pqxx::connection>&);
-        void                                     cleanupMarkedConnections();
         // static inline void                              cleanupIdleConnections()          ;
         // void                                            startCleanupTask()                ;
 
-        std::chrono::milliseconds                getTotalDuration(const std::unique_ptr<pqxx::connection>&)      ;
-        std::chrono::milliseconds                getLastDuration(const std::unique_ptr<pqxx::connection>&)       ;
-        std::chrono::milliseconds                calculateAverageDuration()        ;
-        int                                      getUsageCount(const std::unique_ptr<pqxx::connection>&)         ;
-        void                                     printConnectionStats()            ;
 
 
       public:
-        virtual void                                    closeConnection(const std::unique_ptr<pqxx::connection>&)       ;
-        virtual void                                    closeConnection(std::optional<Database::ConnectionWrapper>& connection);
+        void                                          closeConnection(const dbuniq&)            ;
+        void                                          closeConnection(std::optional<Database::ConnectionWrapper>&);
 
         struct Metrics {
-          std::size_t                                   available                         ;
-          std::size_t                                   total_known                       ;
-          std::size_t                                   creations                         ;
-          std::size_t                                   failures                          ;
-          std::size_t                                   validation_errors                 ;
+          std::size_t                                 available                                 ;
+          std::size_t                                 total_known                               ;
+          std::size_t                                 creations                                 ;
+          std::size_t                                 failures                                  ;
+          std::size_t                                 validation_errors                         ;
         };
 
         Pool();
         ~Pool();
 
-        [[nodiscard]] Metrics                    getMetrics()              noexcept;
-        [[nodiscard]] std::size_t                getAvailableConnections() noexcept;
-        [[nodiscard]] std::size_t                getTotalConnections()     noexcept;
-        [[nodiscard]] PoolData&                  getPoolData()             noexcept;
+        // [[nodiscard]] const Metrics                   getMetrics()                const noexcept;
+        [[nodiscard]] const std::size_t               getAvailableConnections()         noexcept;
+        [[nodiscard]] const std::size_t               getTotalConnections()             noexcept;
+        [[nodiscard]] PoolData&                       getPoolData()                     noexcept;
 
-        std::optional<Database::ConnectionWrapper> acquire()                     ;
-        void                                     releaseConnection(std::optional<const std::unique_ptr<pqxx::connection>*>);
+        std::optional<Database::ConnectionWrapper>    acquire()                                 ;
+        void                                          releaseConnection(dboptuniqptr)           ;
     };
 
   private:
-    std::unique_ptr<IRepository> database;
-
-    std::unique_ptr<IRepository> chooseDatabase(DatabaseType type);
+    std::unique_ptr<IRepository>                      database                                  ;
+    std::unique_ptr<IRepository>                      chooseDatabase(DatabaseType type)         ;
+    std::unique_ptr<Pool>                             pool                                      ;
 
   public:
-    std::unique_ptr<Pool>                               pool                              ;
 
     Database();
     ~Database() override;
 
-    std::optional<Database::ConnectionWrapper>          acquire()                         ;
-    void                                                releaseConnection(std::optional<const std::unique_ptr<pqxx::connection>*>);
+    std::optional<Database::ConnectionWrapper>        acquire()                                 ;
+    void                                              releaseConnection(dboptuniqptr)           ;
 
     std::optional<std::string> echoString(std::string str) override
     {

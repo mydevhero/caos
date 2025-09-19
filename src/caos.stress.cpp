@@ -63,7 +63,7 @@ void worker_thread(int thread_id) {
     {
       // spdlog::info("Repository unavailable");
     }
-    catch (const pqxx::sql_error& e)
+    catch (const sql_exception& e)
     {
       // spdlog::error("SQL error during connection creation: {}", e.what());
     }

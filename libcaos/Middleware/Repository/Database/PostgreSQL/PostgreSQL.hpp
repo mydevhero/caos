@@ -5,43 +5,26 @@
 
 #include "../DatabaseFwd.hpp"
 
-// #include <shared_mutex>
-
-
-#define CAOS_POSTGRESQL_QUERY_WITH_CONNECTION_GUARD(conn, CODE) \
-  ([&]() {                                                      \
-    try {                                                       \
-      auto result = (CODE)();                                   \
-      return result;                                            \
-    }                                                           \
-    catch (const pqxx::broken_connection& e) {                  \
-      if (conn) {                                               \
-        this->closeConnection(*((conn).getRaw()));  \
-      }                                                         \
-      throw PostgreSQL::broken_connection(e.what());            \
-    }                                                           \
-  }())
+// #define CAOS_POSTGRESQL_QUERY_WITH_CONNECTION_GUARD(conn, CODE) \
+//   ([&]() {                                                      \
+//     try {                                                       \
+//       auto result = (CODE)();                                   \
+//       return result;                                            \
+//     }                                                           \
+//     catch (const pqxx::broken_connection& e) {                  \
+//       if (conn) {                                               \
+//         this->closeConnection(*((conn).getRaw()));  \
+//       }                                                         \
+//       throw PostgreSQL::broken_connection(e.what());            \
+//     }                                                           \
+//   }())
 
 // #define CAOS_POSTGRESQL_CLOSE_CONNECTION()                      \
 //   PostgreSQL::Pool::closeConnection(*(connection_opt.value().getRaw()));
 
-
 class PostgreSQL final: public IRepository
 {
   private:
-    class Pool : public Database::Pool
-    {
-      private:
-        void                                            setConnectStr()           noexcept override;
-
-        [[nodiscard]] bool                              validateConnection(const std::unique_ptr<pqxx::connection>& connection) override;
-        [[nodiscard]] bool                              createConnection(std::size_t&)    override;
-
-      public:
-        void                                            closeConnection(const std::unique_ptr<pqxx::connection>&) override      ;
-        void                                            closeConnection(std::optional<Database::ConnectionWrapper>& connection) override;
-    };
-
     Database* database;
 
   public:

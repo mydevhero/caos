@@ -39,14 +39,29 @@ add_custom_target(increment_build ALL
   COMMENT "Incrementing build counter"
 )
 
+option(CAOS_USE_DB_POSTGRESQL "CAOS use PostgreSQL" OFF)
+option(CAOS_USE_DB_MYSQL "CAOS use MySQL" ON)
+
+if(CAOS_USE_DB_POSTGRESQL)
+  list(APPEND COMMON_SOURCES
+    Middleware/Repository/Database/PostgreSQL/PostgreSQL.cpp
+    Middleware/Repository/Database/PostgreSQL/PostgreSQL.hpp
+  )
+endif()
+
+if(CAOS_USE_DB_MYSQL)
+  list(APPEND COMMON_SOURCES
+    Middleware/Repository/Database/MySQL/MySQL.hpp
+    Middleware/Repository/Database/MySQL/MySQL.cpp
+  )
+endif()
+
 # Aggiungi sorgenti
 add_library(${PROJECT_NAME} STATIC ${PROJECT_NAME}.cpp
   Middleware/Repository/IRepository.hpp
   Middleware/Repository/Database/Database.cpp
   Middleware/Repository/Database/Database.hpp
   Middleware/Repository/Cache/Cache.hpp
-  Middleware/Repository/Database/PostgreSQL/PostgreSQL.cpp
-  Middleware/Repository/Database/PostgreSQL/PostgreSQL.hpp
   Middleware/Middleware.hpp
   terminal_options.cpp
   include/terminal_options.hpp
@@ -55,7 +70,9 @@ add_library(${PROJECT_NAME} STATIC ${PROJECT_NAME}.cpp
   Middleware/Repository/Exception.hpp
   Middleware/Repository/Database/DatabaseFwd.hpp
   Middleware/Repository/Database/DatabaseFwd.cpp
+  ${COMMON_SOURCES}
 )
+
 set_target_properties(${PROJECT_NAME} PROPERTIES PREFIX "")
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -71,44 +88,22 @@ endif()
 include(FetchContent)
 
 # apt install libpq-dev libcxxopts-dev
-find_package(PostgreSQL REQUIRED)
 find_package(cxxopts REQUIRED)
 # find_package(CURL REQUIRED)       # apt install libcurl4-openssl-dev
-
-# Fetch libpqxx
-FetchContent_Declare(
-    libpqxx
-    GIT_REPOSITORY https://github.com/jtv/libpqxx.git
-    GIT_TAG 7.10.1
-)
 
 # Recupera hiredis
 FetchContent_Declare(
   hiredis
   GIT_REPOSITORY https://github.com/redis/hiredis.git
-  GIT_TAG v1.1.0 # Sostituisci con la versione che preferisci
+  GIT_TAG v1.1.0
 )
 
-# Recupera redis++
+# redis++
 FetchContent_Declare(
   redis-plus-plus
   GIT_REPOSITORY https://github.com/sewenew/redis-plus-plus.git
-  GIT_TAG 1.3.7 # Sostituisci con la versione che preferisci
+  GIT_TAG 1.3.7
 )
-
-# Fetch jwt-cpp
-# FetchContent_Declare(
-#     jwt-cpp
-#     GIT_REPOSITORY https://github.com/Thalhammer/jwt-cpp
-#     GIT_TAG v0.7.1
-# )
-
-# Fetch libfort for ASCII data output in console
-# FetchContent_Declare(
-#     libfort
-#     GIT_REPOSITORY https://github.com/seleznevae/libfort
-#     GIT_TAG v0.4.2
-# )
 
 # spdlog
 FetchContent_Declare(
@@ -117,32 +112,40 @@ FetchContent_Declare(
     GIT_TAG v1.15.3
 )
 
-set(PQXX_BUILD_DOC OFF CACHE BOOL "Build documentation")
+
 set(BUILD_TEST OFF CACHE BOOL "Build tests")
 set(SKIP_BUILD_TEST ON CACHE BOOL "Skip build test")
 
-FetchContent_MakeAvailable(libpqxx spdlog hiredis redis-plus-plus) #jwt-cpp libfort)
+if(CAOS_USE_DB_POSTGRESQL)
+  target_compile_definitions(${PROJECT_NAME} PUBLIC CAOS_USE_DB_POSTGRESQL)
+
+  set(PQXX_BUILD_DOC OFF CACHE BOOL "Build documentation")
+
+  find_package(PostgreSQL REQUIRED)
+
+  # Fetch libpqxx
+  FetchContent_Declare(
+      libpqxx
+      GIT_REPOSITORY https://github.com/jtv/libpqxx.git
+      GIT_TAG 7.10.1
+  )
+
+  FetchContent_MakeAvailable(libpqxx)
+endif()
+
+if(CAOS_USE_DB_MYSQL)
+  target_compile_definitions(${PROJECT_NAME} PUBLIC CAOS_USE_DB_MYSQL)
+
+  find_library(MYSQL_CONN_LIB NAMES mysqlcppconn)
+  include_directories(/usr/include/mysql) # apt install libmysqlcppconn-dev
+endif()
+
+
+FetchContent_MakeAvailable(spdlog hiredis redis-plus-plus) #jwt-cpp libfort)
 
 # Applica la patch automatica:
 include("cmake/patch_redis_plus_plus_utils.cmake")
 
-
-# <------------ add redis-plus-plus dependency -------------->
-# NOTE: this should be *sw* NOT *redis++*
-# find_path(REDIS_PLUS_PLUS_HEADER sw)
-# find_library(REDIS_PLUS_PLUS_LIB redis++)
-# CPMAddPackage(
-#   Crow
-#   VERSION 1.2.1.2
-#   GITHUB_REPOSITORY CrowCpp/Crow
-#   OPTIONS
-#     "CROW_BUILD_EXAMPLES Off"
-#     "CROW_BUILD_TOOLS Off"
-#     "CROW_BUILD_TESTS Off"
-#     "CROW_BUILD_DOCS Off"
-#     "CROW_ENABLE_COMPRESSION On"
-#     "CROW_ENABLE_SSL Off"
-# )
 
 target_include_directories(${PROJECT_NAME} PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -157,14 +160,23 @@ target_link_libraries(
     spdlog::spdlog
     redis++::redis++
     hiredis
-    # Crow::Crow
-    pqxx
-    # jwt-cpp
-    PostgreSQL::PostgreSQL
-    # libfort::fort
-    # CURL::libcurl
     pthread
 )
+
+if(CAOS_USE_DB_POSTGRESQL)
+  target_link_libraries(
+    ${PROJECT_NAME} PRIVATE
+    pqxx
+    PostgreSQL::PostgreSQL
+  )
+endif()
+
+if(CAOS_USE_DB_MYSQL)
+  target_link_libraries(
+    ${PROJECT_NAME} PRIVATE
+    ${MYSQL_CONN_LIB}
+  )
+endif()
 
 # target_link_libraries(
 #   ${PROJECT_NAME} PRIVATE

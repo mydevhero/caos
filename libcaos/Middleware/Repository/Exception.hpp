@@ -1,6 +1,7 @@
 #pragma once
 #include <exception>
 #include <string>
+#include "libcaos/config.hpp"
 
 namespace repository
 {

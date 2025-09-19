@@ -119,6 +119,12 @@ constexpr int CAOS_UNPRIVILEGED_PORT_MAX = 49151;
 
 
 // Database ----------------------------------------------------------------------------------------
+// #define CAOS_DEFAULT_DATABASE_TYPE                          DatabaseType::PostgreSQL
+
+// #define CAOS_USE_DB_POSTGRESQL
+
+// #define CAOS_USE_DB_MYSQL
+
 #define CAOS_ENV_DBUSER_NAME                                "CAOS_DBUSER"
 #define CAOS_ENV_DBPASS_NAME                                "CAOS_DBPASS"
 #define CAOS_ENV_DBHOST_NAME                                "CAOS_DBHOST"
@@ -153,11 +159,19 @@ constexpr int CAOS_UNPRIVILEGED_PORT_MAX = 49151;
 #define CAOS_OPT_DBMAXWAIT_NAME                             "dbmaxwait"
 #define CAOS_OPT_DBHEALTHCHECKINTERVAL_NAME                 "dbhealthcheckinterval"
 
-#define CAOS_DEFAULT_DBUSER                                 "xapp_u"
+#define CAOS_DEFAULT_DBUSER                                 "caos_u"
 #define CAOS_DEFAULT_DBPASS                                 "verystrongpassword"
 #define CAOS_DEFAULT_DBHOST                                 "127.0.0.1"
+
+#ifdef CAOS_USE_DB_POSTGRESQL
 #define CAOS_DEFAULT_DBPORT                                 5432
-#define CAOS_DEFAULT_DBNAME                                 "mycaoserp"
+#endif
+
+#ifdef CAOS_USE_DB_MYSQL
+#define CAOS_DEFAULT_DBPORT                                 3306
+#endif
+
+#define CAOS_DEFAULT_DBNAME                                 "my_crow_awseome_app"
 #define CAOS_DEFAULT_DBPOOLSIZEMIN                          10
 #define CAOS_DEFAULT_DBPOOLSIZEMAX                          20
 #define CAOS_DEFAULT_DBPOOLWAIT                             2000                                    /* milliseconds */
@@ -170,11 +184,11 @@ constexpr int CAOS_UNPRIVILEGED_PORT_MAX = 49151;
 #define CAOS_DEFAULT_DBMAXWAIT                              5000                                    /* milliseconds */
 #define CAOS_DEFAULT_DBHEALTHCHECKINTERVAL                  30000                                   /* milliseconds */
 
-#define CAOS_DEFAULT_DBUSER_ON_DEV_OR_TEST                  "libxapp_u"
-#define CAOS_DEFAULT_DBPASS_ON_DEV_OR_TEST                  "302218"
+#define CAOS_DEFAULT_DBUSER_ON_DEV_OR_TEST                  "caos_u"
+#define CAOS_DEFAULT_DBPASS_ON_DEV_OR_TEST                  "verystrongpassword"
 #define CAOS_DEFAULT_DBHOST_ON_DEV_OR_TEST                  "127.0.0.1"
 // #define CAOS_DEFAULT_DBPORT_ON_DEV_OR_TEST                  5432
-#define CAOS_DEFAULT_DBNAME_ON_DEV_OR_TEST                  "libxapp"
+#define CAOS_DEFAULT_DBNAME_ON_DEV_OR_TEST                  "caos"
 // #define CAOS_DEFAULT_DBPOOLSIZEMIN_ON_DEV_OR_TEST           2
 // #define CAOS_DEFAULT_DBPOOLSIZEMAX_ON_DEV_OR_TEST           4
 // #define CAOS_DEFAULT_DBPOOLWAIT_ON_DEV_OR_TEST              30000
@@ -190,7 +204,6 @@ constexpr int CAOS_UNPRIVILEGED_PORT_MAX = 49151;
 #define CAOS_LOG_THRESHOLD_CONNECTION_LIMIT_EXCEEDED        50
 #define VALIDATE_CONNECTION_BEFORE_ACQUIRE                  1
 #define VALIDATE_USING_TRANSACTION                          0
-#define CAOS_DEFAULT_DATABASE_TYPE                          DatabaseType::PostgreSQL
 //--------------------------------------------------------------------------------------------------
 
 

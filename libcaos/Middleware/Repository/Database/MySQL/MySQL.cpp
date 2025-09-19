@@ -1,8 +1,8 @@
-#include "PostgreSQL.hpp"
+#include "MySQL.hpp"
 // #include "../Database.hpp"
 
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-// Init of PostgreSQL::Pool::setConnectStr()
+// Init of Database::Pool::setConnectStr()
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 void   Database::Pool::setConnectStr() noexcept
 {
@@ -22,7 +22,7 @@ void   Database::Pool::setConnectStr() noexcept
   this->config.connection_string = oss.str();
 }
 // -------------------------------------------------------------------------------------------------
-// End of PostgreSQL::Pool::setConnectStr()
+// End of Database::Pool::setConnectStr()
 // -------------------------------------------------------------------------------------------------
 // -------------------------------------------------------------------------------------------------
 
@@ -36,11 +36,11 @@ void   Database::Pool::setConnectStr() noexcept
 
 
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-// Init of PostgreSQL::Pool::validateConnection()
+// Init of Database::Pool::validateConnection()
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 bool Database::Pool::validateConnection(const dbuniq& connection)
 {
-  static constexpr const char* fName = "PostgreSQL::Pool::validateConnection";
+  static constexpr const char* fName = "MySQL::Pool::validateConnection";
 
   if (!connection)
   {
@@ -49,46 +49,88 @@ bool Database::Pool::validateConnection(const dbuniq& connection)
 
   try
   {
-    if (connection->is_open())
+
+    if (!connection->isClosed())
     {
       spdlog::trace("[{}] Health check query", fName);
 
-      pqxx::result result;
+      #if VALIDATE_USING_TRANSACTION == 1
+      // Disabilita autocommit per simulare una transazione
+      connection->setAutoCommit(false);
+      #endif
 
+      // Per MySQL usiamo direttamente lo statement
+      std::unique_ptr<sql::Statement> stmt(connection->createStatement());
+      std::unique_ptr<sql::ResultSet> result(stmt->executeQuery("SELECT 1"));
+
+      if (result->next())
       {
-        #if VALIDATE_USING_TRANSACTION == 0
-        pqxx::nontransaction nontx(*connection);
-        result = nontx.exec("SELECT 1");
-        #else
-        pqxx::work tx(*connection);
-        result=tx.exec("SELECT 1");
-        tx.commit();
-        #endif
+        int value = result->getInt(1);
+        return value == 1;
       }
 
-      if (!result.empty())
-      {
-        return true;
-      }
+      #if VALIDATE_USING_TRANSACTION == 1
+      connection->commit();
+      connection->setAutoCommit(true);
+      #endif
     }
   }
-  catch (const pqxx::broken_connection& e)
+  catch (const sql::SQLException& e)
   {
-    throw repository::broken_connection("Connection invalid");
+    // Mappatura specifica degli errori MySQL
+    if (e.getErrorCode() == 2002 || e.getErrorCode() == 2003 || e.getErrorCode() == 2006 || e.getErrorCode() == 2013)
+    {
+      // 2002: CR_CONNECTION_ERROR, 2003: CR_CONN_HOST_ERROR,
+      // 2006: CR_SERVER_GONE_ERROR, 2013: CR_SERVER_LOST
+      throw repository::broken_connection("MySQL connection invalid or server gone away");
+    }
+    else if (e.getErrorCode() == 1045)
+    {
+      // ER_ACCESS_DENIED_ERROR
+      throw repository::broken_connection("MySQL access denied - invalid credentials");
+    }
+    else if (e.getErrorCode() == 1049)
+    {
+      // ER_BAD_DB_ERROR
+      throw repository::broken_connection("MySQL database not found");
+    }
+    else if (e.getErrorCode() == 1044)
+    {
+      // ER_DBACCESS_DENIED_ERROR
+      throw repository::broken_connection("MySQL access to database denied");
+    }
+    else if (e.getErrorCode() == 1040)
+    {
+      // ER_CON_COUNT_ERROR
+      throw repository::broken_connection("MySQL too many connections");
+    }
+    else
+    {
+      // Altri errori SQL
+      spdlog::error("[{}] MySQL SQLException: [{}] {}", fName, e.getErrorCode(), e.what());
+    }
   }
   catch (const std::exception& e)
   {
-    spdlog::error("[{}] : {}", fName, e.what());
+    #if VALIDATE_USING_TRANSACTION == 1
+    try { connection->rollback(); } catch (...) {}
+    try { connection->setAutoCommit(true); } catch (...) {}
+    #endif
+    throw;
   }
   catch (...)
   {
-    spdlog::error("[pool] validate: unknown exception");
+    #if VALIDATE_USING_TRANSACTION == 1
+    try { connection->rollback(); } catch (...) {}
+    try { connection->setAutoCommit(true); } catch (...) {}
+    #endif
+    throw;
   }
 
   return false;
 }
 // -------------------------------------------------------------------------------------------------
-// End of PostgreSQL::Pool::validateConnection()
+// End of Database::Pool::validateConnection()
 // -------------------------------------------------------------------------------------------------
 // -------------------------------------------------------------------------------------------------
 
@@ -102,11 +144,11 @@ bool Database::Pool::validateConnection(const dbuniq& connection)
 
 
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-// Init of PostgreSQL::Pool::createConnection()
+// Init of Database::Pool::createConnection()
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 bool Database::Pool::createConnection(std::size_t& pool_size)
 {
-  static constexpr const char* fName = "PostgreSQL::Pool::createConnection";
+  static constexpr const char* fName = "Database::Pool::createConnection";
 
   static std::atomic<bool> loggedOnce {false};
 
@@ -114,14 +156,18 @@ bool Database::Pool::createConnection(std::size_t& pool_size)
   {
     spdlog::debug("[{}] Creating new connection", fName);
 
-    if(!this->checkPoolSize(pool_size))                                                 // Don't saturate PostgreSQL connections
+    if(!this->checkPoolSize(pool_size))                                                             // Don't saturate MySQL connections
     {
       return false;
     }
 
     Database::Pool::PoolData& pool = this->getPoolData();
 
-    auto connection = std::make_unique<dbconn>(this->getConnectStr());
+    // auto connection = std::make_unique<dbconn>(this->getConnectStr());
+
+    sql::mysql::MySQL_Driver* driver = sql::mysql::get_mysql_driver_instance();
+    std::unique_ptr<sql::Connection> connection(driver->connect("tcp://127.0.0.1:3306", "caos_u", "verystrongpassword"));
+    connection->setSchema("caos");
 
     if (this->validateConnection(connection))
     {
@@ -145,9 +191,22 @@ bool Database::Pool::createConnection(std::size_t& pool_size)
 
     connection->close();
   }
-  catch (const pqxx::broken_connection& e)
+  catch (const sql::SQLException& e)
   {
-    throw repository::broken_connection("Server unreachable or port closed");
+    if (e.getErrorCode() == 2003)
+    { // Can't connect to MySQL server
+      throw repository::broken_connection("Connection invalid");
+    }
+
+    if (e.getErrorCode() == 1045)
+    { // Access denied
+      throw repository::broken_connection("Credential invalid");
+    }
+
+    if (e.getErrorCode() == 1049)
+    { // Unknown database
+      throw repository::broken_connection("Database not found");
+    }
   }
   catch (const std::exception& e)
   {
@@ -169,7 +228,7 @@ bool Database::Pool::createConnection(std::size_t& pool_size)
   return false;
 }
 // -------------------------------------------------------------------------------------------------
-// End of PostgreSQL::Pool::createConnection()
+// End of Database::Pool::createConnection()
 // -------------------------------------------------------------------------------------------------
 // -------------------------------------------------------------------------------------------------
 
@@ -183,13 +242,13 @@ bool Database::Pool::createConnection(std::size_t& pool_size)
 
 
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-// Init of PostgreSQL::Pool::closeConnection()
+// Init of Database::Pool::closeConnection()
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 // Internal use
 void Database::Pool::closeConnection(const dbuniq& connection)
 {
-  static constexpr const char* fName = "PostgreSQL::Pool::closeConnection(1)";
+  static constexpr const char* fName = "Database::Pool::closeConnection(1)";
 
   try
   {
@@ -214,13 +273,20 @@ void Database::Pool::closeConnection(const dbuniq& connection)
       }
     }
   }
-  catch (const pqxx::broken_connection& e)
+  catch (const sql::SQLException& e)
   {
-    spdlog::debug("[{}] Connection already broken: {}", fName, e.what());
-  }
-  catch (const pqxx::sql_error& e)
-  {
-    spdlog::warn("[{}] SQL error during connection close: {}", fName, e.what());
+    if (e.getErrorCode() == 2003)
+    { // Can't connect to MySQL server
+      throw repository::broken_connection("Connection invalid");
+    }
+    else if (e.getErrorCode() == 1045)
+    { // Access denied
+      throw repository::broken_connection("Credential invalid");
+    }
+    else if (e.getErrorCode() == 1049)
+    { // Unknown database
+      throw repository::broken_connection("Database not found");
+    }
   }
   catch (const std::exception& e)
   {
@@ -236,7 +302,7 @@ void Database::Pool::closeConnection(const dbuniq& connection)
 // Crow's endpoint use
 void Database::Pool::closeConnection(std::optional<Database::ConnectionWrapper>& connection)
 {
-  static constexpr const char* fName = "PostgreSQL::Pool::closeConnection(2)";
+  static constexpr const char* fName = "Database::Pool::closeConnection(2)";
 
   try
   {
@@ -266,11 +332,7 @@ void Database::Pool::closeConnection(std::optional<Database::ConnectionWrapper>&
       }
     }
   }
-  catch (const pqxx::broken_connection& e)
-  {
-    spdlog::debug("[{}] Connection already broken: {}", fName, e.what());
-  }
-  catch (const pqxx::sql_error& e)
+  catch (const sql::SQLException& e)
   {
     spdlog::warn("[{}] SQL error during connection close: {}", fName, e.what());
   }
@@ -284,7 +346,7 @@ void Database::Pool::closeConnection(std::optional<Database::ConnectionWrapper>&
   }
 }
 // -------------------------------------------------------------------------------------------------
-// End of PostgreSQL::Pool::closeConnection()
+// End of Database::Pool::closeConnection()
 // -------------------------------------------------------------------------------------------------
 // -------------------------------------------------------------------------------------------------
 
@@ -306,24 +368,24 @@ void Database::Pool::closeConnection(std::optional<Database::ConnectionWrapper>&
 /***************************************************************************************************
  *
  *
- * PostgreSQL() Constructor/Destructor
+ * MySQL() Constructor/Destructor
  *
  *
  **************************************************************************************************/
-PostgreSQL::PostgreSQL(Database* database_):database(database_)
+MySQL::MySQL(Database* database_):database(database_)
 {
-  spdlog::trace("PostgreSQL init");
+  spdlog::trace("MySQL init");
 
   // this->pool = std::make_unique<Database::Pool>();
 
-  spdlog::trace("PostgreSQL init done");
+  spdlog::trace("MySQL init done");
 }
 
 
 
 
 
-PostgreSQL::~PostgreSQL()
+MySQL::~MySQL()
 {
   running_.store(false, std::memory_order_release);
   // this->pool.reset();
