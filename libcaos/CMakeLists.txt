@@ -53,6 +53,8 @@ add_library(${PROJECT_NAME} STATIC ${PROJECT_NAME}.cpp
   environment.cpp
   include/environment.hpp
   Middleware/Repository/Exception.hpp
+  Middleware/Repository/Database/DatabaseFwd.hpp
+  Middleware/Repository/Database/DatabaseFwd.cpp
 )
 set_target_properties(${PROJECT_NAME} PROPERTIES PREFIX "")
 

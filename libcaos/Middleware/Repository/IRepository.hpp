@@ -1,9 +1,14 @@
 #pragma once
 #include <optional>
+#include <atomic>
+
+#include "Exception.hpp"
 
 class IRepository
 {
   public:
+    std::atomic<bool>                                   running_{true}                    ;
+
     IRepository() = default;
 
     virtual ~IRepository() = default;
