@@ -146,7 +146,7 @@ bool Database::Pool::validateConnection(const dbuniq& connection)
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 // Init of Database::Pool::createConnection()
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-bool Database::Pool::createConnection(std::size_t& pool_size)
+void Database::Pool::createConnection(std::size_t& pool_size)
 {
   static constexpr const char* fName = "Database::Pool::createConnection";
 
@@ -158,7 +158,7 @@ bool Database::Pool::createConnection(std::size_t& pool_size)
 
     if(!this->checkPoolSize(pool_size))                                                             // Don't saturate MySQL connections
     {
-      return false;
+      return;
     }
 
     Database::Pool::PoolData& pool = this->getPoolData();
@@ -169,7 +169,7 @@ bool Database::Pool::createConnection(std::size_t& pool_size)
     if (!driver)
     {
       spdlog::error("MySQL driver not available");
-      return false;
+      return;
     }
 
     std::unique_ptr<sql::Connection> connection(driver->connect(this->getConnectOpt()));
@@ -192,7 +192,7 @@ bool Database::Pool::createConnection(std::size_t& pool_size)
 
       loggedOnce.store(false, std::memory_order_release);
 
-      return true;
+      return;
     }
 
     connection->close();
@@ -231,7 +231,7 @@ bool Database::Pool::createConnection(std::size_t& pool_size)
     }
   }
 
-  return false;
+  return;
 }
 // -------------------------------------------------------------------------------------------------
 // End of Database::Pool::createConnection()

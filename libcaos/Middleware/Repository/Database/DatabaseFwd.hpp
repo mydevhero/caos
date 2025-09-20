@@ -209,45 +209,43 @@ class Database : public IRepository
         void                                          cleanupMarkedConnections()                ;
 
         // Getters ---------------------------------------------------------------------------------
-        [[nodiscard]] const std::string               getUser()                   const noexcept;
-        [[nodiscard]] const std::string               getPass()                   const noexcept;
-        [[nodiscard]] const std::string               getHost()                   const noexcept;
-        [[nodiscard]] const std::uint16_t             getPort()                   const noexcept;
-        [[nodiscard]] const std::string               getName()                   const noexcept;
-        [[nodiscard]] const std::size_t               getPoolSizeMin()            const noexcept;
-        [[nodiscard]] const std::size_t               getPoolSizeMax()            const noexcept;
-        [[nodiscard]] const std::uint32_t             getPoolWait()               const noexcept;
-        [[nodiscard]] const std::chrono::milliseconds getPoolTimeout()            const noexcept;
+        [[nodiscard]] const std::string&              getUser()                   const noexcept;
+        [[nodiscard]] const std::string&              getPass()                   const noexcept;
+        [[nodiscard]] const std::string&              getHost()                   const noexcept;
+        [[nodiscard]] const std::uint16_t&            getPort()                   const noexcept;
+        [[nodiscard]] const std::string&              getName()                   const noexcept;
+        [[nodiscard]] const std::size_t&              getPoolSizeMin()            const noexcept;
+        [[nodiscard]] const std::size_t&              getPoolSizeMax()            const noexcept;
+        [[nodiscard]] const std::uint32_t&            getPoolWait()               const noexcept;
+        [[nodiscard]] const std::chrono::milliseconds& getPoolTimeout()           const noexcept;
 
         #ifdef CAOS_USE_DB_POSTGRESQL
-        [[nodiscard]] const std::size_t               getKeepAlives()             const noexcept;
-        [[nodiscard]] const std::size_t               getKeepAlivesIdle()         const noexcept;
-        [[nodiscard]] const std::size_t               getKeepAlivesInterval()     const noexcept;
-        [[nodiscard]] const std::size_t               getKeepAlivesCount()        const noexcept;
+        [[nodiscard]] const std::size_t&              getKeepAlives()             const noexcept;
+        [[nodiscard]] const std::size_t&              getKeepAlivesIdle()         const noexcept;
+        [[nodiscard]] const std::size_t&              getKeepAlivesInterval()     const noexcept;
+        [[nodiscard]] const std::size_t&              getKeepAlivesCount()        const noexcept;
         [[nodiscard]] const std::string&              getConnectStr()             const noexcept;
         #endif
 
-        [[nodiscard]] const std::size_t               getConnectTimeout()         const noexcept;
+        [[nodiscard]] const std::size_t&              getConnectTimeout()         const noexcept;
 
         #if (defined(CAOS_USE_DB_MYSQL)||defined(CAOS_USE_DB_MARIADB))
         [[nodiscard]]       sql::ConnectOptionsMap&   getConnectOpt()                   noexcept;
         #endif
 
-        [[nodiscard]] const std::chrono::milliseconds getMaxWait()                const noexcept;
-        [[nodiscard]] const std::chrono::milliseconds getHealthCheckInterval()    const noexcept;
+        [[nodiscard]] const std::chrono::milliseconds& getMaxWait()                const noexcept;
+        [[nodiscard]] const std::chrono::milliseconds& getHealthCheckInterval()    const noexcept;
         [[nodiscard]] const bool                      isDevOrTestEnv()            const noexcept;
-        [[nodiscard]] const bool                      checkPoolSize(std::size_t&) noexcept;
+        [[nodiscard]] const bool checkPoolSize(std::size_t&) noexcept;
 
         [[nodiscard]] bool                            validateConnection(const dbuniq&)         ;
-        [[nodiscard]] bool                            createConnection(std::size_t&)            ;
+                      void                            createConnection(std::size_t&)            ;
 
-        std::chrono::milliseconds                     getTotalDuration(const dbuniq&)           ;
-        std::chrono::milliseconds                     getLastDuration(const dbuniq&)            ;
-        std::chrono::milliseconds                     calculateAverageDuration()                ;
-        int                                           getUsageCount(const dbuniq&)              ;
-        void                                          printConnectionStats()                    ;
-
-
+        [[nodiscard]] const std::chrono::milliseconds getTotalDuration(const dbuniq&)           ;
+        [[nodiscard]] const std::chrono::milliseconds getLastDuration(const dbuniq&)            ;
+        [[nodiscard]] const std::chrono::milliseconds calculateAverageDuration()                ;
+        [[nodiscard]] const int                       getUsageCount(const dbuniq&)              ;
+                      void                            printConnectionStats()                    ;
 
         // Connections map -------------------------------------------------------------------------
         struct ConnectionMetrics

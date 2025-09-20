@@ -1741,31 +1741,31 @@ void Database::Pool::setHealthCheckInterval()
 
 
 
-const std::string               Database::Pool::getUser()                 const noexcept { return this->config.user;                  }
-const std::string               Database::Pool::getPass()                 const noexcept { return this->config.pass;                  }
-const std::string               Database::Pool::getHost()                 const noexcept { return this->config.host;                  }
-const std::uint16_t             Database::Pool::getPort()                 const noexcept { return this->config.port;                  }
-const std::string               Database::Pool::getName()                 const noexcept { return this->config.name;                  }
-const std::size_t               Database::Pool::getPoolSizeMin()          const noexcept { return this->config.poolsizemin;           }
-const std::size_t               Database::Pool::getPoolSizeMax()          const noexcept { return this->config.poolsizemax;           }
-const std::uint32_t             Database::Pool::getPoolWait()             const noexcept { return this->config.poolwait;              }
-const std::chrono::milliseconds Database::Pool::getPoolTimeout()          const noexcept { return this->config.pooltimeout;           }
+const std::string&                Database::Pool::getUser()                 const noexcept { return this->config.user;                  }
+const std::string&                Database::Pool::getPass()                 const noexcept { return this->config.pass;                  }
+const std::string&                Database::Pool::getHost()                 const noexcept { return this->config.host;                  }
+const std::uint16_t&              Database::Pool::getPort()                 const noexcept { return this->config.port;                  }
+const std::string&                Database::Pool::getName()                 const noexcept { return this->config.name;                  }
+const std::size_t&                Database::Pool::getPoolSizeMin()          const noexcept { return this->config.poolsizemin;           }
+const std::size_t&                Database::Pool::getPoolSizeMax()          const noexcept { return this->config.poolsizemax;           }
+const std::uint32_t&              Database::Pool::getPoolWait()             const noexcept { return this->config.poolwait;              }
+const std::chrono::milliseconds&  Database::Pool::getPoolTimeout()          const noexcept { return this->config.pooltimeout;           }
 #ifdef CAOS_USE_DB_POSTGRESQL
-const std::size_t               Database::Pool::getKeepAlives()           const noexcept { return this->config.keepalives;            }
-const std::size_t               Database::Pool::getKeepAlivesIdle()       const noexcept { return this->config.keepalives_idle;       }
-const std::size_t               Database::Pool::getKeepAlivesInterval()   const noexcept { return this->config.keepalives_interval;   }
-const std::size_t               Database::Pool::getKeepAlivesCount()      const noexcept { return this->config.keepalives_count;      }
-const std::string&              Database::Pool::getConnectStr()           const noexcept { return this->config.connection_string;     }
+const std::size_t&                Database::Pool::getKeepAlives()           const noexcept { return this->config.keepalives;            }
+const std::size_t&                Database::Pool::getKeepAlivesIdle()       const noexcept { return this->config.keepalives_idle;       }
+const std::size_t&                Database::Pool::getKeepAlivesInterval()   const noexcept { return this->config.keepalives_interval;   }
+const std::size_t&                Database::Pool::getKeepAlivesCount()      const noexcept { return this->config.keepalives_count;      }
+const std::string&                Database::Pool::getConnectStr()           const noexcept { return this->config.connection_string;     }
 #endif
-const std::size_t               Database::Pool::getConnectTimeout()       const noexcept { return this->config.connect_timeout;       }
+const std::size_t&                Database::Pool::getConnectTimeout()       const noexcept { return this->config.connect_timeout;       }
 
 #if (defined(CAOS_USE_DB_MYSQL)||defined(CAOS_USE_DB_MARIADB))
-sql::ConnectOptionsMap&         Database::Pool::getConnectOpt()                 noexcept { return this->config.connection_options;    }
+      sql::ConnectOptionsMap&     Database::Pool::getConnectOpt()                 noexcept { return this->config.connection_options;    }
 #endif
 
-const std::chrono::milliseconds Database::Pool::getMaxWait()              const noexcept { return this->config.max_wait;              }
-const std::chrono::milliseconds Database::Pool::getHealthCheckInterval()  const noexcept { return this->config.health_check_interval; }
-const bool                      Database::Pool::isDevOrTestEnv()          const noexcept { return this->environmentRef->getEnv() == Environment::ENV::dev || this->environmentRef->getEnv() == Environment::ENV::test; }
+const std::chrono::milliseconds&  Database::Pool::getMaxWait()              const noexcept { return this->config.max_wait;              }
+const std::chrono::milliseconds&  Database::Pool::getHealthCheckInterval()  const noexcept { return this->config.health_check_interval; }
+const bool                        Database::Pool::isDevOrTestEnv()          const noexcept { return this->environmentRef->getEnv() == Environment::ENV::dev || this->environmentRef->getEnv() == Environment::ENV::test; }
 
 
 
@@ -1808,7 +1808,7 @@ const bool                      Database::Pool::isDevOrTestEnv()          const 
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 // Init of Database::Pool::getAvailableConnections()
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-const std::size_t Database::Pool::getAvailableConnections()  noexcept
+const std::size_t Database::Pool::getAvailableConnections() noexcept
 {
   std::size_t count = 0;
 
@@ -1921,11 +1921,9 @@ std::size_t Database::Pool::init(std::size_t count)
          && running_.load(std::memory_order_acquire)                                                // Stop if a signal is detect
          && !this->connectionRefused.load(std::memory_order_acquire))                   // Stop if a previous connection was refused
   {
-    bool connectionResult = false;
-
     try
     {
-      connectionResult = this->createConnection(pool_size);
+      this->createConnection(pool_size);
     }
     catch (const repository::broken_connection& e)
     {
@@ -2071,7 +2069,7 @@ void Database::Pool::healthCheckLoop()
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 // Init of Database::Pool::calculateAverageDuration()
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-std::chrono::milliseconds Database::Pool::calculateAverageDuration()
+const std::chrono::milliseconds Database::Pool::calculateAverageDuration()
 {
   std::chrono::milliseconds total_duration{0};
   int total_operations = 0;
@@ -2441,7 +2439,7 @@ void Database::Pool::releaseConnection(dboptuniqptr connection_opt)
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 // Init of Database::Pool::getTotalDuration()
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-std::chrono::milliseconds Database::Pool::getTotalDuration(const dbuniq& connection)
+const std::chrono::milliseconds Database::Pool::getTotalDuration(const dbuniq& connection)
 {
   Database::Pool::PoolData& pool = this->getPoolData();
 
@@ -2471,7 +2469,7 @@ std::chrono::milliseconds Database::Pool::getTotalDuration(const dbuniq& connect
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 // Init of Database::Pool::getLastDuration()
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-std::chrono::milliseconds Database::Pool::getLastDuration(const dbuniq& connection)
+const std::chrono::milliseconds Database::Pool::getLastDuration(const dbuniq& connection)
 {
   Database::Pool::PoolData& pool = this->getPoolData();
 
@@ -2501,7 +2499,7 @@ std::chrono::milliseconds Database::Pool::getLastDuration(const dbuniq& connecti
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 // Init of Database::Pool::getUsageCount()
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-int Database::Pool::getUsageCount(const dbuniq& connection)
+const int Database::Pool::getUsageCount(const dbuniq& connection)
 {
   Database::Pool::PoolData& pool = this->getPoolData();
 

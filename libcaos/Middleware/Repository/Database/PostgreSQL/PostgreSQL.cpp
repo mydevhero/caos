@@ -1,5 +1,4 @@
 #include "PostgreSQL.hpp"
-// #include "../Database.hpp"
 
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 // Init of PostgreSQL::Pool::setConnectStr()
@@ -104,7 +103,7 @@ bool Database::Pool::validateConnection(const dbuniq& connection)
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 // Init of PostgreSQL::Pool::createConnection()
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-bool Database::Pool::createConnection(std::size_t& pool_size)
+void Database::Pool::createConnection(std::size_t& pool_size)
 {
   static constexpr const char* fName = "PostgreSQL::Pool::createConnection";
 
@@ -116,7 +115,7 @@ bool Database::Pool::createConnection(std::size_t& pool_size)
 
     if(!this->checkPoolSize(pool_size))                                                 // Don't saturate PostgreSQL connections
     {
-      return false;
+      return;
     }
 
     Database::Pool::PoolData& pool = this->getPoolData();
@@ -140,7 +139,7 @@ bool Database::Pool::createConnection(std::size_t& pool_size)
 
       loggedOnce.store(false, std::memory_order_release);
 
-      return true;
+      return;
     }
 
     connection->close();
@@ -166,7 +165,7 @@ bool Database::Pool::createConnection(std::size_t& pool_size)
     }
   }
 
-  return false;
+  return;
 }
 // -------------------------------------------------------------------------------------------------
 // End of PostgreSQL::Pool::createConnection()
