@@ -1,25 +1,25 @@
 #include "MySQL.hpp"
-// #include "../Database.hpp"
 
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 // Init of Database::Pool::setConnectStr()
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-void   Database::Pool::setConnectStr() noexcept
+void Database::Pool::setConnectOpt() noexcept
 {
-  std::ostringstream oss;
+  sql::ConnectOptionsMap options;
 
-  oss << "host="                  << this->getHost()
-      << " port="                 << this->getPort()
-      << " dbname="               << this->getName()
-      << " user="                 << this->getUser()
-      << " password="             << this->getPass()
-      << " connect_timeout="      << this->getConnectTimeout()
-      << " keepalives="           << this->getKeepAlives()
-      << " keepalives_interval="  << this->getKeepAlivesInterval()
-      << " keepalives_idle="      << this->getKeepAlivesIdle()
-      << " keepalives_count="     << this->getKeepAlivesCount();
+  options["hostName"] = this->getHost();
+  options["port"]     = this->getPort();
+  options["userName"] = this->getUser();
+  options["password"] = this->getPass();
+  options["schema"]   = this->getName();
 
-  this->config.connection_string = oss.str();
+  if (this->getConnectTimeout() > 0)
+  {
+    options["connectTimeout"] = static_cast<int>(this->getConnectTimeout());
+  }
+
+  // Salva le options invece della stringa
+  this->config.connection_options = options;
 }
 // -------------------------------------------------------------------------------------------------
 // End of Database::Pool::setConnectStr()
@@ -166,8 +166,14 @@ bool Database::Pool::createConnection(std::size_t& pool_size)
     // auto connection = std::make_unique<dbconn>(this->getConnectStr());
 
     sql::mysql::MySQL_Driver* driver = sql::mysql::get_mysql_driver_instance();
-    std::unique_ptr<sql::Connection> connection(driver->connect("tcp://127.0.0.1:3306", "caos_u", "verystrongpassword"));
-    connection->setSchema("caos");
+    if (!driver)
+    {
+      spdlog::error("MySQL driver not available");
+      return false;
+    }
+
+    std::unique_ptr<sql::Connection> connection(driver->connect(this->getConnectOpt()));
+
 
     if (this->validateConnection(connection))
     {

@@ -176,10 +176,14 @@ constexpr int CAOS_UNPRIVILEGED_PORT_MAX = 49151;
 #define CAOS_DEFAULT_DBPOOLSIZEMAX                          20
 #define CAOS_DEFAULT_DBPOOLWAIT                             2000                                    /* milliseconds */
 #define CAOS_DEFAULT_DBPOOLTIMEOUT                          15000                                   /* milliseconds */
+
+#ifdef CAOS_USE_DB_POSTGRESQL
 #define CAOS_DEFAULT_DBKEEPALIVES                           1
 #define CAOS_DEFAULT_DBKEEPALIVES_IDLE                      30
 #define CAOS_DEFAULT_DBKEEPALIVES_INTERVAL                  10
 #define CAOS_DEFAULT_DBKEEPALIVES_COUNT                     5
+#endif
+
 #define CAOS_DEFAULT_DBCONNECT_TIMEOUT                      2
 #define CAOS_DEFAULT_DBMAXWAIT                              5000                                    /* milliseconds */
 #define CAOS_DEFAULT_DBHEALTHCHECKINTERVAL                  30000                                   /* milliseconds */
@@ -193,10 +197,14 @@ constexpr int CAOS_UNPRIVILEGED_PORT_MAX = 49151;
 // #define CAOS_DEFAULT_DBPOOLSIZEMAX_ON_DEV_OR_TEST           4
 // #define CAOS_DEFAULT_DBPOOLWAIT_ON_DEV_OR_TEST              30000
 // #define CAOS_DEFAULT_DBPOOLTIMEOUT_ON_DEV_OR_TEST           15000
+
+#ifdef CAOS_USE_DB_POSTGRESQL
 // #define CAOS_DEFAULT_DBKEEPALIVES_ON_DEV_OR_TEST            1
 // #define CAOS_DEFAULT_DBKEEPALIVES_IDLE_ON_DEV_OR_TEST       30
 // #define CAOS_DEFAULT_DBKEEPALIVES_INTERVAL_ON_DEV_OR_TEST   10
 // #define CAOS_DEFAULT_DBKEEPALIVES_COUNT_ON_DEV_OR_TEST      5
+#endif
+
 // #define CAOS_DEFAULT_DBCONNECT_TIMEOUT_ON_DEV_OR_TEST       30
 // #define CAOS_DEFAULT_DBMAXWAIT_ON_DEV_OR_TEST               5000  /* milliseconds */
 // #define CAOS_DEFAULT_DBHEALTHCHECKINTERVAL_ON_DEV_OR_TEST   30000 /* milliseconds */

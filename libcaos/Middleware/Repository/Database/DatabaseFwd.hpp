@@ -157,12 +157,21 @@ class Database : public IRepository
           std::size_t                                 poolsizemax           {0}                 ;
           std::uint32_t                               poolwait              {0}                 ;
           std::chrono::milliseconds                   pooltimeout           {0}                 ;
+
+          #ifdef CAOS_USE_DB_POSTGRESQL
           std::size_t                                 keepalives            {0}                 ;
           std::size_t                                 keepalives_idle       {0}                 ;
           std::size_t                                 keepalives_interval   {0}                 ;
           std::size_t                                 keepalives_count      {0}                 ;
-          std::size_t                                 connect_timeout       {0}                 ;
           std::string                                 connection_string                         ;
+          #endif
+
+          std::size_t                                 connect_timeout       {0}                 ;
+
+          #if (defined(CAOS_USE_DB_MYSQL)||defined(CAOS_USE_DB_MARIADB))
+          sql::ConnectOptionsMap                      connection_options                        ;
+          #endif
+
           std::chrono::milliseconds                   max_wait              {0}                 ;
           std::chrono::milliseconds                   health_check_interval {0}                 ;
         };
@@ -178,14 +187,20 @@ class Database : public IRepository
         void                                          setPoolSizeMax()                          ;
         void                                          setPoolWait()                             ;
         void                                          setPoolTimeout()                          ;
+        #ifdef CAOS_USE_DB_POSTGRESQL
         void                                          setKeepAlives()                           ;
         void                                          setKeepAlivesIdle()                       ;
         void                                          setKeepAlivesInterval()                   ;
         void                                          setKeepAlivesCount()                      ;
+        void                                          setConnectStr()                   noexcept;
+        #endif
         void                                          setConnectTimeout()                       ;
         void                                          setMaxWait()                              ;
         void                                          setHealthCheckInterval()                  ;
-        void                                          setConnectStr()                   noexcept;
+
+        #if (defined(CAOS_USE_DB_MYSQL)||defined(CAOS_USE_DB_MARIADB))
+        void                                          setConnectOpt()                   noexcept;
+        #endif
 
         std::size_t                                   init(std::size_t = 0)                     ;
         void                                          healthCheckLoop()                         ;
@@ -203,12 +218,21 @@ class Database : public IRepository
         [[nodiscard]] const std::size_t               getPoolSizeMax()            const noexcept;
         [[nodiscard]] const std::uint32_t             getPoolWait()               const noexcept;
         [[nodiscard]] const std::chrono::milliseconds getPoolTimeout()            const noexcept;
+
+        #ifdef CAOS_USE_DB_POSTGRESQL
         [[nodiscard]] const std::size_t               getKeepAlives()             const noexcept;
         [[nodiscard]] const std::size_t               getKeepAlivesIdle()         const noexcept;
         [[nodiscard]] const std::size_t               getKeepAlivesInterval()     const noexcept;
         [[nodiscard]] const std::size_t               getKeepAlivesCount()        const noexcept;
-        [[nodiscard]] const std::size_t               getConnectTimeout()         const noexcept;
         [[nodiscard]] const std::string&              getConnectStr()             const noexcept;
+        #endif
+
+        [[nodiscard]] const std::size_t               getConnectTimeout()         const noexcept;
+
+        #if (defined(CAOS_USE_DB_MYSQL)||defined(CAOS_USE_DB_MARIADB))
+        [[nodiscard]]       sql::ConnectOptionsMap&   getConnectOpt()                   noexcept;
+        #endif
+
         [[nodiscard]] const std::chrono::milliseconds getMaxWait()                const noexcept;
         [[nodiscard]] const std::chrono::milliseconds getHealthCheckInterval()    const noexcept;
         [[nodiscard]] const bool                      isDevOrTestEnv()            const noexcept;

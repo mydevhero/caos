@@ -113,12 +113,20 @@ Database::Pool::Pool():running_(true),connectionRefused(false)
     .poolsizemax            = 0                           ,
     .poolwait               = 0                           ,
     .pooltimeout            = std::chrono::milliseconds(0),
+    #ifdef CAOS_USE_DB_POSTGRESQL
     .keepalives             = 0                           ,
     .keepalives_idle        = 0                           ,
     .keepalives_interval    = 0                           ,
     .keepalives_count       = 0                           ,
-    .connect_timeout        = 0                           ,
     .connection_string      = ""                          ,
+    #endif
+
+    .connect_timeout        = 0                           ,
+
+    #if (defined(CAOS_USE_DB_MYSQL)||defined(CAOS_USE_DB_MARIADB))
+    .connection_options     = {}                          ,
+    #endif
+
     .max_wait               = std::chrono::milliseconds(0),
     .health_check_interval  = std::chrono::milliseconds(0)
   };
@@ -135,17 +143,23 @@ Database::Pool::Pool():running_(true),connectionRefused(false)
   setPoolSizeMax()          ;
   setPoolWait()             ;
   setPoolTimeout()          ;
+  #ifdef CAOS_USE_DB_POSTGRESQL
   setKeepAlives()           ;
   setKeepAlivesIdle()       ;
   setKeepAlivesInterval()   ;
   setKeepAlivesCount()      ;
+  #endif
   setConnectTimeout()       ;
   setMaxWait()              ;
   setHealthCheckInterval()  ;
+
+  #ifdef CAOS_USE_DB_POSTGRESQL
   setConnectStr()           ;
+  #endif
 
-  // Database::Pool::healthCheckThread_ = std::thread(&Database::Pool::healthCheckLoop);
-
+  #if (defined(CAOS_USE_DB_MYSQL)||defined(CAOS_USE_DB_MARIADB))
+  setConnectOpt()           ;
+  #endif
 
   this->healthCheckThread_ = std::thread([this]() {
     this->healthCheckLoop ();
@@ -1070,6 +1084,7 @@ void Database::Pool::setPoolTimeout()
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 // Init of Database::Pool::setKeepAlives()
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+#ifdef CAOS_USE_DB_POSTGRESQL
 void Database::Pool::setKeepAlives()
 {
   static constexpr const char* fName = "Database::Pool::setKeepAlives";
@@ -1146,6 +1161,7 @@ void Database::Pool::setKeepAlives()
                this->config.keepalives,
                this->environmentRef->getName());
 }
+#endif
 // -------------------------------------------------------------------------------------------------
 // End of Database::Pool::setKeepAlives()
 // -------------------------------------------------------------------------------------------------
@@ -1163,6 +1179,7 @@ void Database::Pool::setKeepAlives()
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 // Init of Database::Pool::setKeepAlivesIdle()
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+#ifdef CAOS_USE_DB_POSTGRESQL
 void Database::Pool::setKeepAlivesIdle()
 {
   static constexpr const char* fName = "Database::Pool::setKeepAlivesIdle";
@@ -1239,6 +1256,7 @@ void Database::Pool::setKeepAlivesIdle()
                this->config.keepalives_idle,
                this->environmentRef->getName());
 }
+#endif
 // -------------------------------------------------------------------------------------------------
 // End of Database::Pool::setKeepAlivesIdle()
 // -------------------------------------------------------------------------------------------------
@@ -1256,6 +1274,7 @@ void Database::Pool::setKeepAlivesIdle()
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 // Init of Database::Pool::setKeepAlivesInterval()
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+#ifdef CAOS_USE_DB_POSTGRESQL
 void Database::Pool::setKeepAlivesInterval()
 {
   static constexpr const char* fName = "Database::Pool::setKeepAlivesInterval";
@@ -1332,6 +1351,7 @@ void Database::Pool::setKeepAlivesInterval()
                this->config.keepalives_interval,
                this->environmentRef->getName());
 }
+#endif
 // -------------------------------------------------------------------------------------------------
 // End of Database::Pool::setKeepAlivesInterval()
 // -------------------------------------------------------------------------------------------------
@@ -1349,6 +1369,7 @@ void Database::Pool::setKeepAlivesInterval()
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 // Init of Database::setKeepAlivesCount()
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+#ifdef CAOS_USE_DB_POSTGRESQL
 void Database::Pool::setKeepAlivesCount()
 {
   static constexpr const char* fName = "Database::Pool::setKeepAlivesCount";
@@ -1425,6 +1446,7 @@ void Database::Pool::setKeepAlivesCount()
                this->config.keepalives_count,
                this->environmentRef->getName());
 }
+#endif
 // -------------------------------------------------------------------------------------------------
 // End of Database::Pool::setKeepAlivesCount()
 // -------------------------------------------------------------------------------------------------
@@ -1728,12 +1750,19 @@ const std::size_t               Database::Pool::getPoolSizeMin()          const 
 const std::size_t               Database::Pool::getPoolSizeMax()          const noexcept { return this->config.poolsizemax;           }
 const std::uint32_t             Database::Pool::getPoolWait()             const noexcept { return this->config.poolwait;              }
 const std::chrono::milliseconds Database::Pool::getPoolTimeout()          const noexcept { return this->config.pooltimeout;           }
+#ifdef CAOS_USE_DB_POSTGRESQL
 const std::size_t               Database::Pool::getKeepAlives()           const noexcept { return this->config.keepalives;            }
 const std::size_t               Database::Pool::getKeepAlivesIdle()       const noexcept { return this->config.keepalives_idle;       }
 const std::size_t               Database::Pool::getKeepAlivesInterval()   const noexcept { return this->config.keepalives_interval;   }
 const std::size_t               Database::Pool::getKeepAlivesCount()      const noexcept { return this->config.keepalives_count;      }
-const std::size_t               Database::Pool::getConnectTimeout()       const noexcept { return this->config.connect_timeout;       }
 const std::string&              Database::Pool::getConnectStr()           const noexcept { return this->config.connection_string;     }
+#endif
+const std::size_t               Database::Pool::getConnectTimeout()       const noexcept { return this->config.connect_timeout;       }
+
+#if (defined(CAOS_USE_DB_MYSQL)||defined(CAOS_USE_DB_MARIADB))
+sql::ConnectOptionsMap&         Database::Pool::getConnectOpt()                 noexcept { return this->config.connection_options;    }
+#endif
+
 const std::chrono::milliseconds Database::Pool::getMaxWait()              const noexcept { return this->config.max_wait;              }
 const std::chrono::milliseconds Database::Pool::getHealthCheckInterval()  const noexcept { return this->config.health_check_interval; }
 const bool                      Database::Pool::isDevOrTestEnv()          const noexcept { return this->environmentRef->getEnv() == Environment::ENV::dev || this->environmentRef->getEnv() == Environment::ENV::test; }
