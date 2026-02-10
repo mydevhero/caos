@@ -178,3 +178,5 @@ class QueryValidator:
             if len(value_repr) > 100:
                 value_repr = value_repr[:97] + "..."
             print(f"   Invalid value: {value_repr}", file=sys.stderr)
+
+# vim: set tabstop=2 shiftwidth=2 expandtab colorcolumn=121 :

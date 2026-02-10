@@ -92,6 +92,7 @@ foreach(NODE_MAJOR_VER IN LISTS SUPPORTED_NODE_VERSIONS)
   )
 
   if(NODE_EXECUTABLE_${NODE_MAJOR_VER})
+
     # Get Node.js version
     execute_process(
       COMMAND ${NODE_EXECUTABLE_${NODE_MAJOR_VER}} --version

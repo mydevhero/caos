@@ -683,3 +683,5 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
+# vim: set tabstop=2 shiftwidth=2 expandtab colorcolumn=121 :

@@ -33,3 +33,5 @@ __all__ = [
     'QueryValidator',
     'SchemaValidationError',
 ]
+
+# vim: set tabstop=2 shiftwidth=2 expandtab colorcolumn=121 :
