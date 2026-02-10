@@ -1,0 +1,27 @@
+# Custom Query Definitions
+---
+version: "1.0.0"
+
+queries:
+  # Echo
+  - name: IQuery_Template_echoString_custom
+    enabled: true
+    metadata:
+      category: template
+    return_type: std::optional<std::string>
+    description: "Echo a string back"
+
+    parameters:
+      - type: std::string
+        name: str
+        description: "Input string to echo"
+
+    authentication:
+      type: TOKEN
+      required: true
+      env_var: CAOS_API_TOKEN
+      validation:
+        min_length: 32
+        max_length: 64
+
+    tags: [template]

@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mydevhero/CAOSDBA/schemas/query-schema.json",
+  "title": "Custom Query Definition",
+  "description": "Schema for defining custom queries",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "1.0.0",
+      "description": "Schema version"
+    },
+    "queries": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/query"
+      }
+    }
+  },
+  "required": ["version", "queries"],
+  "$defs": {
+    "query": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Za-z0-9_]*$",
+          "description": "C++ method name (must be valid identifier)"
+        },
+        "return_type": {
+          "type": "string",
+          "enum": [
+            "std::optional<std::string>",
+            "std::optional<int>",
+            "std::optional<bool>",
+            "void",
+            "bool",
+            "int",
+            "std::string",
+            "std::vector<std::string>"
+          ],
+          "description": "C++ return type"
+        },
+        "parameters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/parameter"
+          },
+          "default": []
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether this query should be generated (master switch)"
+        },
+        "metadata": {
+          "type": "object",
+          "properties": {
+            "category": {
+              "type": "string",
+              "enum": ["standard", "example", "template"],
+              "default": "standard",
+              "description": "Query category for filtering"
+            },
+            "version": {
+              "type": "string",
+              "description": "API version of this query"
+            },
+            "deprecated": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "default": {}
+        },
+        "authentication": {
+          "$ref": "#/$defs/authentication"
+        },
+        "filters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/filter"
+          },
+          "default": []
+        },
+        "cache": {
+          "$ref": "#/$defs/cache"
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      },
+      "required": ["name", "return_type"]
+    },
+    "parameter": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "C++ type (e.g., std::string, int, bool)"
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-zA-Z0-9_]*$",
+          "description": "Parameter name (must be valid C++ identifier)"
+        },
+        "default": {
+          "type": "string",
+          "description": "Default value as C++ expression"
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "required": ["type", "name"]
+    },
+    "authentication": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["TOKEN", "NONE"],
+          "default": "TOKEN"
+        },
+        "required": {
+          "type": "boolean",
+          "default": true
+        },
+        "env_var": {
+          "type": "string",
+          "description": "Environment variable name for the secret"
+        },
+        "validation": {
+          "type": "object",
+          "properties": {
+            "min_length": {"type": "integer"},
+            "max_length": {"type": "integer"},
+            "pattern": {"type": "string"}
+          }
+        }
+      },
+      "required": ["type"]
+    }
+  }
+}
