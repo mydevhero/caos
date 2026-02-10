@@ -1,7 +1,7 @@
 <div>
 <img src="https://raw.githubusercontent.com/mydevhero/CAOSDBA/main/docs/assets/caosdba.svg" alt="CAOSDBA" width="600"/>
 
-<p><b>Cache App On Steroids - High-Performance C++ backend with built-in caching</b></p>
+<p><b>Cache App On Steroids for Database Administrators - High-Performance C++ backend with built-in caching</b></p>
 </div>
 
 &nbsp;
@@ -10,7 +10,7 @@
 
 **CAOSDBA** is a high-performance C++ framework designed with a **cache-first architecture** at its core. It's particularly valuable for teams seeking **predictable low-latency** and **scalable data access patterns**.
 
-By integrating [**CrowCpp**](https://github.com/CrowCpp/Crow) as its backend engine and exposing C++ queries as **native PHP/Python/Node.js extensions**, CAOSDBA allows teams to execute high-performance C++ code through simple PHP/Python/Node.js function calls or REST APIs.
+By integrating [**CrowCpp**](https://github.com/CrowCpp/Crow) as its backend engine for REST APIs or exposing C++ queries as **native PHP/Python/Node.js extensions**, allowing teams to execute high-performance C++ code through a simple PHP/Python/Node.js function calls.
 
 **In essence**, CAOSDBA bridges the gap between application code and data layer optimization, making expert-level query performance accessible across your entire tech stack.
 
@@ -33,19 +33,47 @@ CAOSDBA helps these different experts work together effectively, ensuring that d
 ## **Traditional challenges vs. CAOSDBA approach**
 
 **Traditional approach:**
-```php
-// Developer writes direct DB query
-$result = $db->query("SELECT * FROM users WHERE id = ?", [$id]);
-// Performance varies, credentials exposed
+```text
+FUNCTION FetchData(RequestParameters):
+    // 1. Check Cache Layer
+    Result = Cache.Search(RequestParameters)
+    
+    IF Result is FOUND:
+        LOG "Cache Hit"
+        RETURN Result
+    
+    // 2. Database Fallback (Cache Miss)
+    LOG "Cache Miss - Executing Database Query"
+    Result = Database.Execute(RequestParameters)
+    
+    IF Result EXISTS:
+        // 3. Populate Cache for subsequent requests
+        Cache.Save(RequestParameters, Result, TTL)
+        RETURN Result
+        
+    RETURN Error.NotFound
 ```
 
 &nbsp;
 
 **With CAOSDBA:**
-```php
-// DBA-optimized C++ query, cached automatically
-$result = IQuery_GetUserById($call_context, $id);
-// Guaranteed performance, secure
+```text
+// CAOSDBA: Declaration-Driven Data Access
+
+// 1. The framework provides a clean, typed interface
+Function GetUser(CallContext, ID):
+    // Internal logic (Hidden from developer):
+    // - Validates API Token via Environment Variables
+    // - Checks Cache Layer automatically
+    // - Executes optimized C++ Query on Miss
+    // - Updates Cache
+    Return CAOSDBA_Generated_Service.Execute(CallContext, ID)
+
+// 2. High-level Application Usage
+Result = GetUser(CallContext, TargetID)
+
+IF Result.IsDefined:
+    ProceedWithBusinessLogic(Result.Value)
 ```
 
 &nbsp;
@@ -53,7 +81,7 @@ $result = IQuery_GetUserById($call_context, $id);
 | Aspect | Traditional Approach | With CAOSDBA |
 | :--- | :--- | :--- |
 | **Query Ownership** | Scattered across application code | Centralized with data experts |
-| **Performance Consistency** | Varies by developer experience | Guaranteed by compiled C++ queries |
+| **Performance Consistency** | Varies by developer experience | Guaranteed by DB experts |
 | **Team Collaboration** | Often reactive and siloed | Proactive and integrated |
 | **Caching Strategy** | Application-focused implementation | Data-layer focused with DBA guidance |
 
@@ -295,27 +323,42 @@ cmake -G Ninja -DCAOS_DB_BACKEND=POSTGRESQL -DCAOS_PROJECT_TYPE=CROWCPP -DCAOS_C
 
 # Defining queries
 
-Look into `query_definitions.txt`, which looks like:
-```txt
-######################################################################################################################################################
-# return_type              | method_name                | full_params     | call_params  | authType | authName      | authKey                        #
-######################################################################################################################################################
-std::optional<std::string> | IQuery_Template_echoString | std::string str | str          | TOKEN    |CAOS_API_TOKEN | ARBJi7cJuOYPXmFPPLVWsGrXmD4SU3LW
+CAOSDBA uses YAML files with JSON Schema validation to define queries. This provides better structure, validation, and extensibility compared to the previous TXT format.
+
+Look into queries.yaml for query definitions. For detailed documentation on the YAML format and JSON Schema validation, see the [**Query Definitions Guide**](https://github.com/mydevhero/CAOSDBA/wiki/Query-Definitions-Guide) in the wiki.
+
+## Quick example:
+
+```yaml
+queries:
+  # Echo
+  - name: IQuery_Template_echoString_custom
+    enabled: true
+    metadata:
+      category: template
+    return_type: std::optional<std::string>
+    description: "Echo a string back"
+
+    parameters:
+      - type: std::string
+        name: str
+        description: "Input string to echo"
+
+    authentication:
+      type: TOKEN
+      required: true
+      env_var: CAOS_API_TOKEN
+      validation:
+        min_length: 32
+        max_length: 64
+
+    tags: [template]
 ```
 
-This is the source of the queries boilerplate, avoiding the need to define each query in both base class and forward classes.
-Just define your query as shown in the example code.
+## Key features
 
-**Column descriptions:**
-- `return_type`: C++ return type (e.g., `std::optional<std::string>`, `int`, `bool`)
-- `method_name`: Function name that will be generated
-- `full_params`: Complete parameter list with types
-- `call_params`: Parameter names for the function call
-- `authType`: Authentication type (TOKEN for shared environments)
-- `authName`: Environment variable name for the token
-- `authKey`: The actual authentication key value
-
-TOKENs provide secure access control in shared environments like PHP/Python/Node.js, ensuring only authorized code can execute queries.
+- YAML format - Human-readable, structured definition
+- JSON Schema validation - Automatic validation of query definitions
 
 &nbsp;
 
@@ -350,7 +393,7 @@ export CAOS_DBNAME="..."
 
 ### TOKENs
 
-Export each TOKEN as defined in `query_definitions.txt`:
+Export each TOKEN as defined in `queries.yaml`:
 
 ```bash
 export CAOS_API_TOKEN=ARBJi7cJuOYPXmFPPLVWsGrXmD4SU3LW
@@ -495,6 +538,15 @@ After running these commands, you'll need to:
 
 - Re-run CMake configuration
 - Rebuild the project from scratch
+
+&nbsp;
+
+# Documentation
+
+For detailed documentation on specific topics, refer to the CAOSDBA wiki:
+
+- 📖 [**Query Definitions Guide**](https://github.com/mydevhero/CAOSDBA/wiki/Query-Definitions-Guide) - Complete YAML format reference with examples
+- 🔧 [**JSON Schema Reference**](https://github.com/mydevhero/CAOSDBA/wiki/JSON-Schema-Reference) - Schema validation and field definitions
 
 &nbsp;
 
