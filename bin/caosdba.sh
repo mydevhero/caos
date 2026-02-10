@@ -23,15 +23,15 @@ usage() {
 purge_project() {
     echo "WARNING: This will delete all project files created by this script."
     echo "This includes:"
-    echo "  - $SOURCE_DIR/build/release (entire directory)"
-    echo "  - $PROJECT_DIR/dist/ (entire directory)"
-    echo "  - $PROJECT_DIR/src/ (entire directory)"
-    echo "  - $PROJECT_DIR/scripts/ (entire directory)"
-    echo "  - $PROJECT_DIR/typescript/ (entire directory)"
-    echo "  - $PROJECT_DIR/queries/ (entire directory)"
-    echo "  - $PROJECT_DIR/schemas/ (entire directory)"
+    echo "  - $PROJECT_DIR/build (entire directory)"
+    echo "  - $PROJECT_DIR/dist (entire directory)"
+    echo "  - $PROJECT_DIR/src (entire directory)"
+    echo "  - $PROJECT_DIR/scripts (entire directory)"
+    echo "  - $PROJECT_DIR/typescript (entire directory)"
+    echo "  - $PROJECT_DIR/queries (entire directory)"
+    echo "  - $PROJECT_DIR/schemas (entire directory)"
 #    echo "  - Files in $PROJECT_DIR/cmake/"
-    echo "  - $PROJECT_DIR/cmake/ (entire directory)"
+    echo "  - $PROJECT_DIR/cmake (entire directory)"
     echo ""
     read -p "Are you sure you want to continue? (y/N): " confirm
 
@@ -40,11 +40,11 @@ purge_project() {
             echo "Purging project files..."
 
             # Remove build/release directory
-            if [ -d "$SOURCE_DIR/build/release" ]; then
-                rm -rf "$SOURCE_DIR/build/release"
-                echo "Removed $SOURCE_DIR/build/release"
+            if [ -d "$PROJECT_DIR/build" ]; then
+                rm -rf "$PROJECT_DIR/build"
+                echo "Removed $PROJECT_DIR/build"
             else
-                echo "$SOURCE_DIR/build/release directory not found, skipping"
+                echo "$PROJECT_DIR/build directory not found, skipping"
             fi
 
             # Remove src directory
@@ -516,3 +516,5 @@ else
     echo "Error: No option specified"
     usage
 fi
+
+# vim: set tabstop=2 shiftwidth=2 expandtab colorcolumn=121 :

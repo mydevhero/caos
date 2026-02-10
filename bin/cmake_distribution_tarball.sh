@@ -5,6 +5,6 @@ SOURCE_DIR="$SCRIPT_DIR/.."
 PROJECT_DIR="$SOURCE_DIR/.."
 RELEASE_DIR="$PROJECT_DIR/build/release"
 
-cmake --build "$RELEASE_DIR"
+sudo cmake --build "$RELEASE_DIR" --target make_distribution_tarball
 
 # vim: set tabstop=2 shiftwidth=2 expandtab colorcolumn=121 :

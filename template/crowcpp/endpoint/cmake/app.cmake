@@ -1,10 +1,28 @@
-# Main application executable
-add_executable(${PROJECT_NAME} src/main.cpp)
+set(PROJECT_DIR "${CMAKE_SOURCE_DIR}/..")
 
-include("${CMAKE_SOURCE_DIR}/cmake/app_debug.cmake")
+# Build counter logic
+set(BUILD_COUNTER_FILE "${CMAKE_BINARY_DIR}/build_counter.txt")
+if(EXISTS "${BUILD_COUNTER_FILE}")
+  file(READ "${BUILD_COUNTER_FILE}" CAOS_BUILD_COUNT)
+  string(STRIP "${CAOS_BUILD_COUNT}" CAOS_BUILD_COUNT)
+  math(EXPR CAOS_BUILD_COUNT "${CAOS_BUILD_COUNT} + 1")
+else()
+  set(CAOS_BUILD_COUNT 1)
+endif()
+
+string(TOLOWER "${CAOS_DB_BACKEND}" CAOS_DB_BACKEND_LOWER)
+
+string(REPLACE "__PROJECT_NAME__" "${PROJECT_NAME}" PACKAGE_JSON_CONTENT "${PACKAGE_JSON_CONTENT}")
+string(REPLACE "__CAOS_DB_BACKEND_LOWER__" "${CAOS_DB_BACKEND_LOWER}" PACKAGE_JSON_CONTENT "${PACKAGE_JSON_CONTENT}")
+string(REPLACE "__CAOS_BUILD_COUNT__" "${CAOS_BUILD_COUNT}" PACKAGE_JSON_CONTENT "${PACKAGE_JSON_CONTENT}")
+string(REPLACE "__TIMESTAMP__" "${CMAKE_TIMESTAMP}" PACKAGE_JSON_CONTENT "${PACKAGE_JSON_CONTENT}")
+
+include("${PROJECT_DIR}/cmake/app_debug.cmake")
+
+add_executable(${PROJECT_NAME} ${PROJECT_DIR}/src/main.cpp)
 
 target_include_directories(${PROJECT_NAME} PRIVATE
   ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/src
-  ${CMAKE_SOURCE_DIR}/src/include
+  ${PROJECT_DIR}/src
+  ${PROJECT_DIR}/src/include
 )

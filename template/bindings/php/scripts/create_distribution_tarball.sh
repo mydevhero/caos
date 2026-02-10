@@ -2,7 +2,8 @@
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../" && pwd)"
-BUILD_DIR="$PROJECT_ROOT/CAOSDBA/build/release"
+#BUILD_DIR="$PROJECT_ROOT/CAOSDBA/build/release"
+BUILD_DIR="$PROJECT_ROOT/build/release"
 DIST_DIR="$PROJECT_ROOT/dist"
 
 DB_BACKEND=${1:-"MYSQL"}

@@ -153,3 +153,5 @@ def validate_yaml_structure(file_path: Path) -> None:
         
     except Exception as e:
         print(f"Error during diagnosis: {e}")
+
+# vim: set tabstop=2 shiftwidth=2 expandtab colorcolumn=121 :

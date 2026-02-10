@@ -7,7 +7,8 @@ DB_BACKEND_LOWER=$(echo "$DB_BACKEND" | tr '[:upper:]' '[:lower:]')
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../" && pwd)"
-BUILD_DIR="$PROJECT_ROOT/CAOSDBA/build/release"
+#BUILD_DIR="$PROJECT_ROOT/CAOSDBA/build/release"
+BUILD_DIR="$PROJECT_ROOT/build/release"
 DIST_DIR="$PROJECT_ROOT/dist"
 TEMP_DIR="$DIST_DIR/temp_caos_node_deb"
 REPO_DIR="$DIST_DIR/repositories/${PROJECT_NAME}/nodejs"
