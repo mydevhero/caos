@@ -20,7 +20,7 @@ execute_process(
         -DPROJECT_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
         -DPROJECT_VERSION_MINOR=${PROJECT_VERSION_MINOR}
         -DPROJECT_VERSION_PATCH=${PROJECT_VERSION_PATCH}
-        -P "${CMAKE_SOURCE_DIR}/libcaos/cmake/build_counter_and_version.cmake"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/build_counter_and_version.cmake"
     RESULT_VARIABLE script_res
 )
 
@@ -270,6 +270,11 @@ target_include_directories(${PROJECT_NAME} PUBLIC
   ${CMAKE_BINARY_DIR}/libcaos
 )
 
+# Nella libreria
+target_include_directories(libcaos PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
 target_link_libraries(${PROJECT_NAME} PUBLIC pthread)
 
 install(TARGETS ${PROJECT_NAME}

@@ -6,8 +6,8 @@
 # =============================================================================
 
 # Core CAOSDBA queries (always required)
-set(CAOSDBA_QUERIES_DIR "${CMAKE_SOURCE_DIR}/queries/CAOSDBA")
-set(CAOSDBA_SCHEMA_DIR "${CMAKE_SOURCE_DIR}/schemas/CAOSDBA")
+set(CAOSDBA_QUERIES_DIR "${CMAKE_SOURCE_DIR}/CAOSDBA/queries/CAOSDBA")
+set(CAOSDBA_SCHEMA_DIR "${CMAKE_SOURCE_DIR}/CAOSDBA/schemas/CAOSDBA")
 
 # Check for core queries (required)
 if(NOT EXISTS "${CAOSDBA_QUERIES_DIR}/queries.yaml")
@@ -25,8 +25,8 @@ if(NOT EXISTS "${CAOSDBA_SCHEMA_DIR}/queries.json")
 endif()
 
 # Check for optional custom queries
-set(CUSTOM_QUERIES_DIR "${CMAKE_SOURCE_DIR}/../queries/custom")
-set(CUSTOM_SCHEMA_DIR "${CMAKE_SOURCE_DIR}/../schemas/custom")
+set(CUSTOM_QUERIES_DIR "${CMAKE_SOURCE_DIR}/queries/custom")
+set(CUSTOM_SCHEMA_DIR "${CMAKE_SOURCE_DIR}/schemas/custom")
 
 set(CUSTOM_QUERIES_FOUND FALSE)
 set(CUSTOM_SCHEMA_FOUND FALSE)
@@ -55,7 +55,7 @@ if(CAOS_BUILD_EXAMPLES AND (CAOS_BUILD_PHP_BINDING OR CAOS_BUILD_NODE_BINDING OR
   set(CAOS_EXAMPLE_QUERY "--caos-example-query")
 endif()
 
-set(CAOS_TEMPLATE_CODE_PATH "${CMAKE_SOURCE_DIR}/../cmake")
+set(CAOS_TEMPLATE_CODE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 set(CAOS_TEMPLATE_CODE_FILE "${CAOS_TEMPLATE_CODE_PATH}/type_code.cmake")
 if(EXISTS ${CAOS_TEMPLATE_CODE_FILE})
   include(${CAOS_TEMPLATE_CODE_FILE})
@@ -78,7 +78,7 @@ if(CUSTOM_QUERIES_FOUND)
 endif()
 
 # Set generator script and output directory
-set(QUERY_GENERATOR_SCRIPT "${CMAKE_SOURCE_DIR}/bin/generate_queries.py")
+set(QUERY_GENERATOR_SCRIPT "${CMAKE_SOURCE_DIR}/CAOSDBA/bin/generate_queries.py")
 set(GENERATED_QUERIES_DIR "${CMAKE_BINARY_DIR}/generated_queries")
 
 # Validate required files

@@ -3,7 +3,7 @@ message(STATUS "Building CAOS as Python extension")
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-set(PROJECT_DIR ${CMAKE_SOURCE_DIR}/..)
+set(PROJECT_DIR ${CMAKE_SOURCE_DIR})
 
 # Define supported Python versions
 set(SUPPORTED_PYTHON_VERSIONS "3.8" "3.9" "3.10" "3.11" "3.12")

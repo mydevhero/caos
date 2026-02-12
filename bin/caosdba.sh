@@ -23,6 +23,7 @@ usage() {
 purge_project() {
     echo "WARNING: This will delete all project files created by this script."
     echo "This includes:"
+    echo "  - $PROJECT_DIR/CMakeLists.txt"
     echo "  - $PROJECT_DIR/build (entire directory)"
     echo "  - $PROJECT_DIR/dist (entire directory)"
     echo "  - $PROJECT_DIR/src (entire directory)"
@@ -38,6 +39,14 @@ purge_project() {
     case $confirm in
         [yY])
             echo "Purging project files..."
+
+            # Remove CMakeLists.txt
+            if [ -f "$PROJECT_DIR/CMakeLists.txt" ]; then
+                rm "$PROJECT_DIR/CMakeLists.txt"
+                echo "Removed $PROJECT_DIR/CMakeLists.txt"
+            else
+                echo "$PROJECT_DIR/CMakeLists.txt not found, skipping"
+            fi
 
             # Remove build/release directory
             if [ -d "$PROJECT_DIR/build" ]; then
