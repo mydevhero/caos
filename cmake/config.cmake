@@ -1,5 +1,5 @@
-if(NOT EXISTS ${CMAKE_SOURCE_DIR}/../dist)
-  file(MAKE_DIRECTORY ${CMAKE_SOURCE_DIR}/../dist)
+if(NOT EXISTS ${CMAKE_SOURCE_DIR}/dist)
+  file(MAKE_DIRECTORY ${CMAKE_SOURCE_DIR}/dist)
 endif()
 
 # Select CAOS_ENV ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -23,7 +23,7 @@ endif()
 
 # Select CAOS_DB_BACKEND +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 set(VALID_DB_BACKENDS "POSTGRESQL" "MYSQL" "MARIADB")
-set(CAOS_DB_BACKEND_PATH "${CMAKE_SOURCE_DIR}/../cmake")
+set(CAOS_DB_BACKEND_PATH "${CMAKE_SOURCE_DIR}/cmake") # -------------
 set(CAOS_DB_BACKEND_FILE "${CAOS_DB_BACKEND_PATH}/db_backend.cmake")
 if(EXISTS ${CAOS_DB_BACKEND_FILE})
   include(${CAOS_DB_BACKEND_FILE})
@@ -63,7 +63,7 @@ set_property(CACHE CAOS_DB_BACKEND PROPERTY STRINGS
 # Select CAOS_DB_BACKEND ---------------------------------------------------------------------------
 
 # Select CAOS_PROJECT_TYPE +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-set(CAOS_PROJECT_TYPE_PATH "${CMAKE_SOURCE_DIR}/../cmake")
+set(CAOS_PROJECT_TYPE_PATH "${CMAKE_SOURCE_DIR}/cmake") # -------------
 set(CAOS_PROJECT_TYPE_FILE "${CAOS_PROJECT_TYPE_PATH}/project_type.cmake")
 if(EXISTS ${CAOS_PROJECT_TYPE_FILE})
   include(${CAOS_PROJECT_TYPE_FILE})
@@ -98,7 +98,7 @@ set_property(CACHE CAOS_PROJECT_TYPE PROPERTY STRINGS
 if(DEFINED CAOS_PROJECT_TYPE AND CAOS_PROJECT_TYPE STREQUAL "BINDING")
   # Definisci i linguaggi validi (solo maiuscoli)
   set(VALID_BINDING_LANGUAGES "PHP" "NODEJS" "PYTHON")
-  set(CAOS_BINDING_LANGUAGE_PATH "${CMAKE_SOURCE_DIR}/../cmake")
+  set(CAOS_BINDING_LANGUAGE_PATH "${CMAKE_SOURCE_DIR}/cmake") # -------------
   set(CAOS_BINDING_LANGUAGE_FILE "${CAOS_BINDING_LANGUAGE_PATH}/binding_language.cmake")
   if(EXISTS ${CAOS_BINDING_LANGUAGE_FILE})
     include(${CAOS_BINDING_LANGUAGE_FILE})
@@ -140,7 +140,7 @@ endif()
 
 # Select CAOS_CROWCPP_TYPE +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 if(DEFINED CAOS_PROJECT_TYPE AND CAOS_PROJECT_TYPE STREQUAL "CROWCPP")
-  set(CAOS_CROWCPP_TYPE_PATH "${CMAKE_SOURCE_DIR}/../cmake")
+  set(CAOS_CROWCPP_TYPE_PATH "${CMAKE_SOURCE_DIR}/cmake") # -------------
   set(CAOS_CROWCPP_TYPE_FILE "${CAOS_CROWCPP_TYPE_PATH}/crowcpp_type.cmake")
 
   if(EXISTS ${CAOS_CROWCPP_TYPE_FILE})
@@ -176,8 +176,8 @@ endif()
 message(STATUS "Initializing project structure...")
 
 execute_process(
-  COMMAND ${CMAKE_SOURCE_DIR}/bin/caosdba.sh --init ${PROJECT_NAME}
-  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+  COMMAND ${CMAKE_SOURCE_DIR}/CAOSDBA/bin/caosdba.sh --init ${PROJECT_NAME}
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/CAOSDBA
   OUTPUT_VARIABLE SETUP_OUTPUT
   ERROR_VARIABLE SETUP_ERROR
   RESULT_VARIABLE SETUP_RESULT
@@ -185,7 +185,7 @@ execute_process(
   ERROR_STRIP_TRAILING_WHITESPACE
 )
 
-set(CAOS_TEMPLATE_CODE_PATH "${CMAKE_SOURCE_DIR}/../cmake")
+set(CAOS_TEMPLATE_CODE_PATH "${CMAKE_SOURCE_DIR}/cmake") # -------------
 set(CAOS_TEMPLATE_CODE_FILE "${CAOS_TEMPLATE_CODE_PATH}/type_code.cmake")
 if(EXISTS ${CAOS_TEMPLATE_CODE_FILE})
   include(${CAOS_TEMPLATE_CODE_FILE})
@@ -249,7 +249,7 @@ if(CAOS_USE_CROWCPP)
 endif()
 
 # Add libcaos ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-add_subdirectory(libcaos)
+add_subdirectory(CAOSDBA/libcaos)
 add_library(repoexception INTERFACE)
 target_include_directories(repoexception INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/libcaos/Middleware/Repository)
 target_link_libraries(repoexception INTERFACE libcaos)

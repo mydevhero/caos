@@ -6,7 +6,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Check for required Node.js development packages
 set(NODEJS_MISSING_PACKAGES "")
 
-set(PROJECT_DIR ${CMAKE_SOURCE_DIR}/..)
+set(PROJECT_DIR ${CMAKE_SOURCE_DIR})
 
 # Check for libnode-dev
 find_path(LIBNODE_DEV_INCLUDE node.h

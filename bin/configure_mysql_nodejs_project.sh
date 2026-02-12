@@ -1,5 +1,6 @@
 #!/bin/bash
 
+PROJECT_NAME="${1:-my_app}"
 DB_BACKEND=MYSQL
 PROJECT_TYPE=BINDING
 BINDING_LANGUAGE=NODEJS
@@ -9,7 +10,7 @@ TARGET_SCRIPT="$SCRIPT_DIR/cmake_configure_project.sh"
 
 if [ -x "$TARGET_SCRIPT" ]; then
     echo "Executing: $TARGET_SCRIPT with $DB_BACKEND $PROJECT_TYPE $BINDING_LANGUAGE"
-    "$TARGET_SCRIPT" "$DB_BACKEND" "$PROJECT_TYPE" "$BINDING_LANGUAGE"
+    "$TARGET_SCRIPT" "$PROJECT_NAME" "$DB_BACKEND" "$PROJECT_TYPE" "$BINDING_LANGUAGE"
 else
     echo "Error: $TARGET_SCRIPT not found or not executable."
     exit 1
